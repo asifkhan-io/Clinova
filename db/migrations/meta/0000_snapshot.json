@@ -1,0 +1,276 @@
+{
+  "id": "0d432b36-8866-4742-9dd6-4161617e4a79",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.clinics": {
+      "name": "clinics",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name_en": {
+          "name": "name_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name_ar": {
+          "name": "name_ar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "address_en": {
+          "name": "address_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "address_ar": {
+          "name": "address_ar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "maps_url": {
+          "name": "maps_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "timezone": {
+          "name": "timezone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Asia/Riyadh'"
+        },
+        "clinic_type": {
+          "name": "clinic_type",
+          "type": "clinic_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'dental'"
+        },
+        "status": {
+          "name": "status",
+          "type": "clinic_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'trial'"
+        },
+        "trial_ends_at": {
+          "name": "trial_ends_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "booking_enabled": {
+          "name": "booking_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "buffer_minutes": {
+          "name": "buffer_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "min_lead_minutes": {
+          "name": "min_lead_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 120
+        },
+        "max_horizon_days": {
+          "name": "max_horizon_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 60
+        },
+        "change_cutoff_minutes": {
+          "name": "change_cutoff_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 120
+        },
+        "slot_granularity_minutes": {
+          "name": "slot_granularity_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 15
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "clinics_slug_key": {
+          "name": "clinics_slug_key",
+          "columns": [
+            {
+              "expression": "slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "clinics_slug_format": {
+          "name": "clinics_slug_format",
+          "value": "\"clinics\".\"slug\" ~ '^[a-z0-9]+(-[a-z0-9]+)*$'"
+        },
+        "clinics_buffer_range": {
+          "name": "clinics_buffer_range",
+          "value": "\"clinics\".\"buffer_minutes\" BETWEEN 0 AND 120"
+        },
+        "clinics_lead_range": {
+          "name": "clinics_lead_range",
+          "value": "\"clinics\".\"min_lead_minutes\" BETWEEN 0 AND 20160"
+        },
+        "clinics_horizon_range": {
+          "name": "clinics_horizon_range",
+          "value": "\"clinics\".\"max_horizon_days\" BETWEEN 1 AND 365"
+        },
+        "clinics_cutoff_range": {
+          "name": "clinics_cutoff_range",
+          "value": "\"clinics\".\"change_cutoff_minutes\" BETWEEN 0 AND 20160"
+        },
+        "clinics_granularity_allowed": {
+          "name": "clinics_granularity_allowed",
+          "value": "\"clinics\".\"slot_granularity_minutes\" IN (5, 10, 15, 20, 30, 60)"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.actor_type": {
+      "name": "actor_type",
+      "schema": "public",
+      "values": [
+        "patient",
+        "member",
+        "platform_admin",
+        "system"
+      ]
+    },
+    "public.appointment_source": {
+      "name": "appointment_source",
+      "schema": "public",
+      "values": [
+        "online",
+        "staff"
+      ]
+    },
+    "public.appointment_status": {
+      "name": "appointment_status",
+      "schema": "public",
+      "values": [
+        "booked",
+        "completed",
+        "cancelled",
+        "no_show"
+      ]
+    },
+    "public.cancelled_by": {
+      "name": "cancelled_by",
+      "schema": "public",
+      "values": [
+        "patient",
+        "staff"
+      ]
+    },
+    "public.clinic_role": {
+      "name": "clinic_role",
+      "schema": "public",
+      "values": [
+        "clinic_owner",
+        "clinic_staff"
+      ]
+    },
+    "public.clinic_status": {
+      "name": "clinic_status",
+      "schema": "public",
+      "values": [
+        "trial",
+        "active",
+        "suspended"
+      ]
+    },
+    "public.clinic_type": {
+      "name": "clinic_type",
+      "schema": "public",
+      "values": [
+        "dental"
+      ]
+    },
+    "public.override_type": {
+      "name": "override_type",
+      "schema": "public",
+      "values": [
+        "closed",
+        "custom_hours"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
