@@ -30,8 +30,6 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
 
 # vercel
 .vercel
@@ -39,7 +37,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-# env files (can opt-in for committing if needed)
-.env*
 .vercel
+
+# env files — real values stay local; the example IS committed.
+# The negation must come last, or a later .env* rule re-ignores it.
 .env*
+!.env.example
+.env.local
