@@ -15,13 +15,21 @@ export default async function HomePage() {
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-6 py-16">
-      <Link
-        href="/"
-        locale={otherLocale}
-        className="self-end rounded-md border px-3 py-1.5 text-sm hover:bg-black/5"
-      >
-        {t("switchLanguage")}
-      </Link>
+      <nav className="flex items-center justify-end gap-2">
+        <Link
+          href="/sign-in"
+          className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white dark:bg-white dark:text-black"
+        >
+          {t("signIn")}
+        </Link>
+        <Link
+          href="/"
+          locale={otherLocale}
+          className="rounded-md border px-3 py-1.5 text-sm hover:bg-black/5"
+        >
+          {t("switchLanguage")}
+        </Link>
+      </nav>
 
       <header className="flex flex-col gap-3 text-start">
         <h1 className="text-3xl font-semibold">{t("title")}</h1>

@@ -7,7 +7,8 @@
     "title": "Book your dental appointment online",
     "subtitle": "Clinova is getting ready. Online booking for dental clinics is coming soon.",
     "sampleLabel": "Sample appointment",
-    "switchLanguage": "العربية"
+    "switchLanguage": "العربية",
+    "signIn": "Clinic sign in"
   },
   "SignIn": {
     "title": "Sign in to Clinova",

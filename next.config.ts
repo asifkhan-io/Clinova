@@ -10,6 +10,13 @@ const nextConfig: NextConfig = {
     agentFeedback: true,
   },
   cacheComponents: true,
+  // People type /login. Send them to the real page instead of a 404.
+  async redirects() {
+    return [
+      { source: "/:locale(en|ar)/(login|log-in|signin)", destination: "/:locale/sign-in", permanent: false },
+      { source: "/(login|log-in|signin|sign-in)", destination: "/en/sign-in", permanent: false },
+    ];
+  },
   partialPrefetching: true,
   turbopack: {
     rules: {
