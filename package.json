@@ -9,7 +9,9 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "db:check": "node scripts/db-check.mjs",
+    "create-admin": "node scripts/create-admin.mjs"
   },
   "engines": {
     "node": ">=20.9.0"

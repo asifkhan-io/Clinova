@@ -8,5 +8,19 @@
     "subtitle": "Clinova is getting ready. Online booking for dental clinics is coming soon.",
     "sampleLabel": "Sample appointment",
     "switchLanguage": "العربية"
+  },
+  "SignIn": {
+    "title": "Sign in to Clinova",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign in",
+    "submitting": "Signing in…",
+    "errorInvalid": "Email or password is incorrect."
+  },
+  "Dashboard": {
+    "title": "Dashboard",
+    "loading": "Loading…",
+    "signedInAs": "Signed in as",
+    "signOut": "Sign out"
   }
 }

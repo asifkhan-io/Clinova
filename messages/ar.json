@@ -8,5 +8,19 @@
     "subtitle": "Clinova قيد التجهيز. الحجز الإلكتروني لعيادات الأسنان قريبًا.",
     "sampleLabel": "موعد تجريبي",
     "switchLanguage": "English"
+  },
+  "SignIn": {
+    "title": "تسجيل الدخول إلى Clinova",
+    "email": "البريد الإلكتروني",
+    "password": "كلمة المرور",
+    "submit": "تسجيل الدخول",
+    "submitting": "جارٍ تسجيل الدخول…",
+    "errorInvalid": "البريد الإلكتروني أو كلمة المرور غير صحيحة."
+  },
+  "Dashboard": {
+    "title": "لوحة التحكم",
+    "loading": "جارٍ التحميل…",
+    "signedInAs": "تم تسجيل الدخول باسم",
+    "signOut": "تسجيل الخروج"
   }
 }

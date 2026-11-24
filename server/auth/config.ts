@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { nextCookies } from "better-auth/next-js";
 
 // Relative imports, not the @/ alias: the Better Auth CLI loads this file
 // outside the Next build, where tsconfig path aliases may not resolve.
@@ -27,6 +28,10 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
+    // No public registration. Accounts come from scripts/create-admin.mjs (you)
+    // or from accepting a clinic invite (step 2d).
+    disableSignUp: true,
+    minPasswordLength: 10,
   },
   advanced: {
     database: {
@@ -35,6 +40,8 @@ export const auth = betterAuth({
       generateId: "uuid",
     },
   },
+  // Lets Server Actions set auth cookies. Must stay the last plugin.
+  plugins: [nextCookies()],
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL,
 });
