@@ -8,8 +8,8 @@ import { resolveLocale } from "@/lib/i18n/server";
 const SAMPLE_APPOINTMENT = new Date("2026-12-01T06:30:00Z");
 const DEMO_TIMEZONE = "Asia/Riyadh";
 
-export default async function HomePage({ params }: PageProps<"/[locale]">) {
-  const locale = await resolveLocale(params);
+export default async function HomePage() {
+  const locale = await resolveLocale();
   const t = await getTranslations("Home");
   const otherLocale = locale === "en" ? "ar" : "en";
 

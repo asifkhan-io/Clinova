@@ -8,10 +8,8 @@ import { getSession } from "@/server/auth/session";
 
 // Placeholder until step 2d. It proves the session works; it is NOT the clinic
 // guard. requireClinicAccess() replaces getSession() here in step 2c.
-export default async function DashboardPage({
-  params,
-}: PageProps<"/[locale]/dashboard">) {
-  const locale = await resolveLocale(params);
+export default async function DashboardPage() {
+  const locale = await resolveLocale();
   const t = await getTranslations("Dashboard");
 
   return (

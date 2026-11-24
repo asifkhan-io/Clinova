@@ -2,10 +2,8 @@ import { getTranslations } from "next-intl/server";
 import { SignInForm } from "@/components/auth/sign-in-form";
 import { resolveLocale } from "@/lib/i18n/server";
 
-export default async function SignInPage({
-  params,
-}: PageProps<"/[locale]/sign-in">) {
-  await resolveLocale(params);
+export default async function SignInPage() {
+  await resolveLocale();
   const t = await getTranslations("SignIn");
 
   return (
