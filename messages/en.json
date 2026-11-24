@@ -29,6 +29,62 @@
     "roles": {
       "clinic_owner": "Owner",
       "clinic_staff": "Staff"
+    },
+    "manageClinics": "Manage clinics"
+  },
+  "Admin": {
+    "title": "Platform admin",
+    "backToDashboard": "Back to dashboard",
+    "loading": "Loading…",
+    "newClinic": "New clinic",
+    "nameEn": "Clinic name (English)",
+    "nameAr": "Clinic name (Arabic)",
+    "slug": "Public address",
+    "slugHint": "Lowercase letters, numbers and dashes. Used in the clinic's booking link.",
+    "ownerEmail": "Owner's email",
+    "create": "Create clinic and invite",
+    "creating": "Creating…",
+    "inviteReady": "Invite link — send it to the owner:",
+    "copy": "Copy link",
+    "copied": "Copied",
+    "inviteOnce": "This link is shown only once and expires in 7 days. If it is lost, create a new one.",
+    "clinics": "Clinics",
+    "noClinics": "No clinics yet.",
+    "owner": "Owner",
+    "invited": "Invited",
+    "noOwner": "No owner yet",
+    "newInviteLink": "New invite link",
+    "status": {
+      "trial": "Trial",
+      "active": "Active",
+      "suspended": "Suspended"
+    },
+    "errors": {
+      "invalid_input": "Please check the fields and try again.",
+      "slug_taken": "That public address is already used by another clinic.",
+      "no_pending_invite": "This clinic has no pending invite.",
+      "unauthenticated": "Your session has ended. Sign in again.",
+      "forbidden": "You don't have access to do that.",
+      "clinic_suspended": "This clinic is suspended."
+    }
+  },
+  "Invite": {
+    "title": "Set up your Clinova account",
+    "loading": "Checking your invite…",
+    "intro": "You've been invited to manage {clinic} on Clinova.",
+    "invalid": "This invite link is invalid, already used, or expired. Ask Clinova for a new one.",
+    "email": "Email",
+    "name": "Your name",
+    "password": "Password",
+    "passwordHint": "At least 10 characters.",
+    "confirmPassword": "Confirm password",
+    "submit": "Create account",
+    "submitting": "Creating account…",
+    "errors": {
+      "invalid_input": "Please check the fields and try again.",
+      "password_mismatch": "The passwords don't match.",
+      "invalid": "This invite link is invalid, already used, or expired.",
+      "account_exists": "An account with this email already exists. Contact Clinova support."
     }
   }
 }

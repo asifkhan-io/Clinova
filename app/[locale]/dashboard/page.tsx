@@ -2,7 +2,7 @@ import type { Locale } from "next-intl";
 import { getTranslations } from "next-intl/server";
 import { Suspense } from "react";
 import { SignOutButton } from "@/components/auth/sign-out-button";
-import { redirect } from "@/lib/i18n/navigation";
+import { Link, redirect } from "@/lib/i18n/navigation";
 import { resolveLocale } from "@/lib/i18n/server";
 import { getViewer, requireClinicAccess } from "@/server/auth/guards";
 import { getOwnClinic } from "@/server/db/repositories/clinics";
@@ -40,7 +40,12 @@ async function DashboardBody({ locale }: { locale: Locale }) {
       </p>
 
       {viewer.isPlatformAdmin && (
-        <p className="rounded-md bg-black/5 px-3 py-2 text-sm">{t("platformAdmin")}</p>
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-black/5 px-3 py-2 text-sm">
+          <span>{t("platformAdmin")}</span>
+          <Link href="/admin" className="font-medium underline">
+            {t("manageClinics")}
+          </Link>
+        </div>
       )}
 
       {viewer.membership ? (
