@@ -1,5 +1,6 @@
 import type { Locale } from "next-intl";
 import { getTranslations } from "next-intl/server";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { AcceptInviteForm } from "@/components/invite/accept-invite-form";
 import { resolveLocale } from "@/lib/i18n/server";
@@ -29,6 +30,8 @@ async function InviteBody({
   locale: Locale;
 }) {
   const { token } = await params;
+  // A per-request database read: never part of a prerendered shell.
+  await connection();
   const t = await getTranslations({ locale, namespace: "Invite" });
   const invite = await findValidInvite(hashToken(token));
 
