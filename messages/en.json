@@ -94,7 +94,8 @@
     "services": "Services",
     "dentists": "Dentists",
     "hours": "Hours",
-    "closures": "Closures"
+    "closures": "Closures",
+    "settings": "Settings"
   },
   "Services": {
     "title": "Services",
@@ -227,6 +228,70 @@
       "unauthenticated": "Your session has ended. Sign in again.",
       "forbidden": "Only the clinic owner can change closures.",
       "clinic_suspended": "This clinic is suspended, so changes are disabled."
+    }
+  },
+  "Settings": {
+    "title": "Settings",
+    "loading": "Loading…",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Saved.",
+    "suspended": "This clinic is suspended. Settings are read-only until Clinova reactivates it.",
+    "bookingTitle": "Online booking",
+    "bookingIsOn": "Patients can book online.",
+    "bookingIsOffReady": "Your clinic is ready. Turn on online booking when you want patients to start booking.",
+    "bookingIsOffNotReady": "Finish the required setup steps on the Overview page first.",
+    "turnOn": "Turn on online booking",
+    "turnOff": "Turn off online booking",
+    "profileTitle": "Clinic profile",
+    "nameEn": "Clinic name (English)",
+    "nameAr": "Clinic name (Arabic)",
+    "addressEn": "Address (English)",
+    "addressAr": "Address (Arabic)",
+    "phone": "Phone (international format)",
+    "mapsUrl": "Google Maps link",
+    "timezone": "Time zone",
+    "rulesTitle": "Booking rules",
+    "none": "None",
+    "minutes": "{count} min",
+    "hours": "{count, plural, one {# hour} other {# hours}}",
+    "days": "{count, plural, one {# day} other {# days}}",
+    "rules": {
+      "minLeadMinutes": "Minimum notice",
+      "minLeadHint": "Patients can't book a slot starting sooner than this.",
+      "maxHorizonDays": "Book up to",
+      "maxHorizonHint": "How far ahead patients can book.",
+      "bufferMinutes": "Gap between appointments",
+      "bufferHint": "Kept free after each appointment for cleaning.",
+      "slotGranularityMinutes": "Start times every",
+      "granularityHint": "Slots start this often, from the start of each shift.",
+      "changeCutoffMinutes": "Change deadline",
+      "cutoffHint": "Patients can't reschedule or cancel online closer than this."
+    },
+    "errors": {
+      "invalid_input": "Please check the fields.",
+      "phone": "Use international format, e.g. +966512345678.",
+      "maps_url": "Paste a full https:// link.",
+      "not_ready": "Finish the required setup steps first.",
+      "unauthenticated": "Your session has ended. Sign in again.",
+      "forbidden": "Only the clinic owner can change settings.",
+      "clinic_suspended": "This clinic is suspended, so changes are disabled."
+    }
+  },
+  "Setup": {
+    "title": "Setup checklist",
+    "progress": "{done} of {total} done",
+    "optional": "optional",
+    "go": "Go",
+    "doneSr": "done",
+    "todoSr": "not done yet",
+    "steps": {
+      "profile": "Add your address and phone",
+      "services": "Add at least one service",
+      "dentists": "Add at least one dentist",
+      "dentistServices": "Every dentist performs at least one service",
+      "hours": "Every dentist has working hours",
+      "bookingOn": "Turn on online booking"
     }
   }
 }
