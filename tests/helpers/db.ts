@@ -3,6 +3,7 @@ import { btree_gist } from "@electric-sql/pglite/contrib/btree_gist";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
+import type { Database } from "@/server/db/client";
 
 /**
  * A real Postgres (PGlite, in memory) with the project's actual migrations
@@ -13,7 +14,11 @@ import * as schema from "@/db/schema";
  */
 export async function createTestDb() {
   const client = new PGlite({ extensions: { btree_gist } });
-  const db = drizzle(client, { schema });
-  await migrate(db, { migrationsFolder: "db/migrations" });
+  const pglite = drizzle(client, { schema });
+  await migrate(pglite, { migrationsFolder: "db/migrations" });
+
+  // The query API is identical; only the driver's result-metadata types differ.
+  // Typing it as the app's Database lets tests build real ClinicContexts.
+  const db = pglite as unknown as Database;
   return { client, db };
 }

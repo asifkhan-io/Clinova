@@ -86,5 +86,41 @@
       "invalid": "This invite link is invalid, already used, or expired.",
       "account_exists": "An account with this email already exists. Contact Clinova support."
     }
+  },
+  "Nav": {
+    "label": "Clinic",
+    "overview": "Overview",
+    "services": "Services"
+  },
+  "Services": {
+    "title": "Services",
+    "loading": "Loading…",
+    "addTitle": "Add a service",
+    "listTitle": "Your services ({count})",
+    "empty": "No services yet. Add your first one above.",
+    "nameEn": "Name (English)",
+    "nameAr": "Name (Arabic)",
+    "descriptionEn": "Description (English, optional)",
+    "descriptionAr": "Description (Arabic, optional)",
+    "duration": "Duration (minutes)",
+    "price": "Price (SAR)",
+    "priceHint": "Leave empty for \"price on request\". 0 means free.",
+    "add": "Add service",
+    "save": "Save changes",
+    "saving": "Saving…",
+    "edit": "Edit",
+    "cancel": "Cancel",
+    "deactivate": "Deactivate",
+    "activate": "Activate",
+    "inactive": "Inactive",
+    "minutes": "{count} min",
+    "priceOnRequest": "Price on request",
+    "errors": {
+      "invalid_input": "Please check the fields: both names are required, and duration must be 5–480 minutes in steps of 5.",
+      "not_found": "That service no longer exists.",
+      "unauthenticated": "Your session has ended. Sign in again.",
+      "forbidden": "Only the clinic owner can change services.",
+      "clinic_suspended": "This clinic is suspended, so changes are disabled."
+    }
   }
 }

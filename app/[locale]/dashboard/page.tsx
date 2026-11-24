@@ -12,7 +12,7 @@ export default async function DashboardPage() {
   const t = await getTranslations("Dashboard");
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-6 py-16">
+    <main className="flex flex-col gap-6">
       <h1 className="text-2xl font-semibold">{t("title")}</h1>
       {/* Session-dependent: streams in behind the static shell. */}
       <Suspense fallback={<p className="opacity-60">{t("loading")}</p>}>

@@ -16,3 +16,12 @@ export function clinicDateTime(locale: string, timeZone: string) {
 export function clinicNumber(locale: string) {
   return new Intl.NumberFormat(locale, { numberingSystem: "latn" });
 }
+
+/** Money is stored in minor units (halalas); SAR only in the MVP (scope §6). */
+export function clinicMoney(locale: string, minor: number) {
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: "SAR",
+    numberingSystem: "latn",
+  }).format(minor / 100);
+}
