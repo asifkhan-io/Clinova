@@ -26,10 +26,17 @@ export async function getSlotsForDate(
     nowMs: number;
     staffId?: string; // omit for "any available dentist"
     busy?: Map<string, Busy[]>;
+    /**
+     * Staff-only relaxations (never for patients): staff may book a walk-in for
+     * right now (no minimum notice) and squeeze appointments back to back (no
+     * buffer, D13). Working hours, closures and the no-overlap rule still apply.
+     */
+    staffOverride?: boolean;
   },
 ): Promise<Slot[]> {
-  const rules = await loadClinicRules(scope);
-  if (!rules) return [];
+  const loaded = await loadClinicRules(scope);
+  if (!loaded) return [];
+  const rules = input.staffOverride ? { ...loaded, minLeadMinutes: 0, bufferMinutes: 0 } : loaded;
   const providers = await loadServiceProviders(scope, input.serviceId);
   if (!providers) return [];
 
