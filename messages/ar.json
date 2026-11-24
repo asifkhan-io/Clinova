@@ -21,6 +21,14 @@
     "title": "لوحة التحكم",
     "loading": "جارٍ التحميل…",
     "signedInAs": "تم تسجيل الدخول باسم",
-    "signOut": "تسجيل الخروج"
+    "signOut": "تسجيل الخروج",
+    "platformAdmin": "مدير المنصة",
+    "noClinic": "حسابك غير مرتبط بأي عيادة بعد.",
+    "clinic": "العيادة",
+    "role": "الدور",
+    "roles": {
+      "clinic_owner": "المالك",
+      "clinic_staff": "موظف"
+    }
   }
 }

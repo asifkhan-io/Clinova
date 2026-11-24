@@ -21,6 +21,14 @@
     "title": "Dashboard",
     "loading": "Loading…",
     "signedInAs": "Signed in as",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "platformAdmin": "Platform admin",
+    "noClinic": "Your account is not linked to a clinic yet.",
+    "clinic": "Clinic",
+    "role": "Role",
+    "roles": {
+      "clinic_owner": "Owner",
+      "clinic_staff": "Staff"
+    }
   }
 }
