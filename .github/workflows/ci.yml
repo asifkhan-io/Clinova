@@ -33,3 +33,7 @@ jobs:
       # typegen writes the generated route types (PageProps, LayoutProps,
       # RouteContext) that the app relies on; tsc alone would fail without it.
       - run: npm run typecheck
+
+      # Tenant isolation + authorization (Phase 2 DoD 5 and 6), against an
+      # in-memory Postgres with the real migrations. No secrets needed.
+      - run: npm test

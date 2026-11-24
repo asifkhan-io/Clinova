@@ -1,0 +1,3 @@
+# Store text files with LF in the repo, whatever the OS. Silences the
+# "LF will be replaced by CRLF" warnings on Windows.
+* text=auto eol=lf
