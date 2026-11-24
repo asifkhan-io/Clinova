@@ -7,11 +7,12 @@ import { createTestDb } from "./helpers/db";
 const testDb = await createTestDb();
 vi.mock("@/server/db/client", () => ({ db: testDb.db }));
 
-const { createClinicWithOwnerInvite, reissueOwnerInvite } = await import(
-  "@/server/db/repositories/admin-clinics"
-);
-const { acceptInvite, findValidInvite } = await import("@/server/db/repositories/invites");
-const { findActiveMembership } = await import("@/server/db/repositories/members");
+const { createClinicWithOwnerInvite, reissueOwnerInvite } =
+  await import("@/server/db/repositories/admin-clinics");
+const { acceptInvite, findValidInvite } =
+  await import("@/server/db/repositories/invites");
+const { findActiveMembership } =
+  await import("@/server/db/repositories/members");
 const { hashToken, newToken } = await import("@/server/services/tokens");
 
 const [admin] = await testDb.db
@@ -33,14 +34,20 @@ async function newClinic(slug: string, ownerEmail: string) {
 describe("owner invites", () => {
   it("stores only the token's hash, never the token", async () => {
     const { token } = await newClinic("hash-check", "h@test.local");
-    const stored = await testDb.db.select({ tokenHash: invites.tokenHash }).from(invites);
+    const stored = await testDb.db
+      .select({ tokenHash: invites.tokenHash })
+      .from(invites);
     expect(stored.map((s) => s.tokenHash)).not.toContain(token);
     expect(stored.map((s) => s.tokenHash)).toContain(hashToken(token));
   });
 
   it("creates the owner account and membership, then refuses a second use", async () => {
     const { clinic, token } = await newClinic("single-use", "owner@test.local");
-    const first = await acceptInvite({ tokenHash: hashToken(token), name: "Owner", passwordHash: "x" });
+    const first = await acceptInvite({
+      tokenHash: hashToken(token),
+      name: "Owner",
+      passwordHash: "x",
+    });
     expect(first).toEqual({ ok: true, email: "owner@test.local" });
 
     const [owner] = await testDb.db
@@ -52,7 +59,11 @@ describe("owner invites", () => {
       role: "clinic_owner",
     });
 
-    const second = await acceptInvite({ tokenHash: hashToken(token), name: "Thief", passwordHash: "x" });
+    const second = await acceptInvite({
+      tokenHash: hashToken(token),
+      name: "Thief",
+      passwordHash: "x",
+    });
     expect(second).toEqual({ ok: false, reason: "invalid" });
   });
 
@@ -69,13 +80,20 @@ describe("owner invites", () => {
 
   it("refuses an email that already has an account, and keeps the invite usable", async () => {
     const { token } = await newClinic("taken-email", "owner@test.local");
-    const result = await acceptInvite({ tokenHash: hashToken(token), name: "X", passwordHash: "x" });
+    const result = await acceptInvite({
+      tokenHash: hashToken(token),
+      name: "X",
+      passwordHash: "x",
+    });
     expect(result).toEqual({ ok: false, reason: "account_exists" });
     expect(await findValidInvite(hashToken(token))).not.toBeNull();
   });
 
   it("kills the old link when a new one is issued", async () => {
-    const { clinic, token: oldToken } = await newClinic("reissue", "re@test.local");
+    const { clinic, token: oldToken } = await newClinic(
+      "reissue",
+      "re@test.local",
+    );
     const fresh = newToken();
     await reissueOwnerInvite(adminCtx, clinic.id, "re@test.local", fresh.hash);
 

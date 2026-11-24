@@ -2,10 +2,14 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  date,
+  foreignKey,
   index,
   integer,
   pgEnum,
   pgTable,
+  primaryKey,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -284,5 +288,195 @@ export const invites = pgTable(
     uniqueIndex("invites_pending_key")
       .on(t.clinicId, sql`lower(${t.email})`)
       .where(sql`${t.acceptedAt} IS NULL`),
+  ],
+);
+
+/* ============================ clinic configuration ============================ */
+// database-design.md §4. Every table carries clinic_id. Children reference
+// their parent on (clinic_id, id) — composite foreign keys (§6) — so a row in
+// clinic A can never point at a dentist or service of clinic B: the database
+// refuses the insert, whatever the application code does.
+
+const minuteBounds = (start: unknown, end: unknown) =>
+  sql`${start} >= 0 AND ${end} <= 1440 AND ${start} < ${end}`;
+
+/* ---------------------------------- services ---------------------------------- */
+
+export const services = pgTable(
+  "services",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    nameEn: text("name_en").notNull(),
+    nameAr: text("name_ar").notNull(), // required: Arabic is a launch language
+    descriptionEn: text("description_en"),
+    descriptionAr: text("description_ar"),
+    durationMinutes: integer("duration_minutes").notNull(),
+    // Halalas. NULL = "price on request"; 0 = free. The nullability is load-bearing.
+    priceMinor: integer("price_minor"),
+    isActive: boolean("is_active").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("services_clinic_active_idx").on(t.clinicId, t.isActive),
+    uniqueIndex("services_clinic_id_key").on(t.clinicId, t.id), // composite-FK target
+    check("services_duration_range", sql`${t.durationMinutes} BETWEEN 5 AND 480`),
+    check("services_duration_step", sql`${t.durationMinutes} % 5 = 0`),
+    check("services_price_nonneg", sql`${t.priceMinor} IS NULL OR ${t.priceMinor} >= 0`),
+  ],
+);
+
+/* ------------------------------------ staff ------------------------------------ */
+// A bookable dentist. user_id is NULLABLE by design: a dentist patients can book
+// is not necessarily a person who can log in (scope §3).
+
+export const staff = pgTable(
+  "staff",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    displayNameEn: text("display_name_en").notNull(),
+    displayNameAr: text("display_name_ar").notNull(),
+    titleEn: text("title_en"), // "Orthodontist" — about the dentist, never a patient
+    titleAr: text("title_ar"),
+    isActive: boolean("is_active").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("staff_clinic_active_idx").on(t.clinicId, t.isActive),
+    uniqueIndex("staff_clinic_id_key").on(t.clinicId, t.id), // composite-FK target
+    uniqueIndex("staff_clinic_user_key").on(t.clinicId, t.userId), // NULLs never collide
+  ],
+);
+
+/* -------------------------------- staff_services -------------------------------- */
+
+export const staffServices = pgTable(
+  "staff_services",
+  {
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    staffId: uuid("staff_id").notNull(),
+    serviceId: uuid("service_id").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.staffId, t.serviceId] }),
+    index("staff_services_service_idx").on(t.clinicId, t.serviceId),
+    foreignKey({
+      columns: [t.clinicId, t.staffId],
+      foreignColumns: [staff.clinicId, staff.id],
+      name: "staff_services_staff_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.clinicId, t.serviceId],
+      foreignColumns: [services.clinicId, services.id],
+      name: "staff_services_service_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
+/* ------------------------- clinic_hours (template only) ------------------------- */
+// Seeds staff_hours and backs "same as clinic hours". The availability engine
+// never reads it (D6 precedence, database-design.md A1). 0 = Sunday. Times are
+// minutes from midnight; 1440 = 24:00. Several rows per day = split shifts.
+
+export const clinicHours = pgTable(
+  "clinic_hours",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    dayOfWeek: smallint("day_of_week").notNull(),
+    startMinute: smallint("start_minute").notNull(),
+    endMinute: smallint("end_minute").notNull(),
+  },
+  (t) => [
+    index("clinic_hours_clinic_day_idx").on(t.clinicId, t.dayOfWeek),
+    check("clinic_hours_dow", sql`${t.dayOfWeek} BETWEEN 0 AND 6`),
+    check("clinic_hours_bounds", minuteBounds(t.startMinute, t.endMinute)),
+  ],
+);
+
+/* ------------------------- staff_hours (authoritative) ------------------------- */
+
+export const staffHours = pgTable(
+  "staff_hours",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    staffId: uuid("staff_id").notNull(),
+    dayOfWeek: smallint("day_of_week").notNull(),
+    startMinute: smallint("start_minute").notNull(),
+    endMinute: smallint("end_minute").notNull(),
+  },
+  (t) => [
+    index("staff_hours_staff_day_idx").on(t.staffId, t.dayOfWeek),
+    check("staff_hours_dow", sql`${t.dayOfWeek} BETWEEN 0 AND 6`),
+    check("staff_hours_bounds", minuteBounds(t.startMinute, t.endMinute)),
+    foreignKey({
+      columns: [t.clinicId, t.staffId],
+      foreignColumns: [staff.clinicId, staff.id],
+      name: "staff_hours_staff_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
+/* ------------------------------ schedule overrides ------------------------------ */
+// staff_id NULL = the whole clinic (Eid, public holiday); set = one dentist (leave).
+// A `closed` override has no interval rows; `custom_hours` has one or more.
+
+export const scheduleOverrides = pgTable(
+  "schedule_overrides",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    staffId: uuid("staff_id"),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date").notNull(), // inclusive
+    type: overrideTypeEnum("type").notNull(),
+    labelEn: text("label_en"), // "Eid al-Fitr", "Ramadan hours" — never clinical
+    labelAr: text("label_ar"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("schedule_overrides_lookup_idx").on(t.clinicId, t.startDate, t.endDate),
+    check("schedule_overrides_date_order", sql`${t.startDate} <= ${t.endDate}`),
+    foreignKey({
+      columns: [t.clinicId, t.staffId],
+      foreignColumns: [staff.clinicId, staff.id],
+      name: "schedule_overrides_staff_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
+export const scheduleOverrideIntervals = pgTable(
+  "schedule_override_intervals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    overrideId: uuid("override_id")
+      .notNull()
+      .references(() => scheduleOverrides.id, { onDelete: "cascade" }),
+    startMinute: smallint("start_minute").notNull(),
+    endMinute: smallint("end_minute").notNull(),
+  },
+  (t) => [
+    index("schedule_override_intervals_override_idx").on(t.overrideId),
+    check("schedule_override_intervals_bounds", minuteBounds(t.startMinute, t.endMinute)),
   ],
 );

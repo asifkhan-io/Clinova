@@ -15,6 +15,20 @@
       "when": 1795529707940,
       "tag": "0001_auth_and_tenancy",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795535441930,
+      "tag": "0002_clinic_configuration",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795535442821,
+      "tag": "0003_exclusion_constraints",
+      "breakpoints": true
     }
   ]
 }
