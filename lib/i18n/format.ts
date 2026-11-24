@@ -25,3 +25,20 @@ export function clinicMoney(locale: string, minor: number) {
     numberingSystem: "latn",
   }).format(minor / 100);
 }
+
+/** Minutes from midnight -> "9:30 AM" / "9:30 ص", Latin digits. 1440 reads as midnight. */
+export function clinicMinutes(locale: string, minutes: number) {
+  return new Intl.DateTimeFormat(locale, {
+    hour: "numeric",
+    minute: "2-digit",
+    numberingSystem: "latn",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(1970, 0, 1, 0, minutes % 1440)));
+}
+
+/** Weekday name for 0 = Sunday … 6 = Saturday. 1 Jan 2023 was a Sunday. */
+export function weekdayName(locale: string, dayOfWeek: number) {
+  return new Intl.DateTimeFormat(locale, { weekday: "long", timeZone: "UTC" }).format(
+    new Date(Date.UTC(2023, 0, 1 + dayOfWeek)),
+  );
+}

@@ -92,7 +92,8 @@
     "label": "Clinic",
     "overview": "Overview",
     "services": "Services",
-    "dentists": "Dentists"
+    "dentists": "Dentists",
+    "hours": "Hours"
   },
   "Services": {
     "title": "Services",
@@ -154,6 +155,37 @@
       "not_found": "That dentist no longer exists.",
       "unauthenticated": "Your session has ended. Sign in again.",
       "forbidden": "Only the clinic owner can change dentists.",
+      "clinic_suspended": "This clinic is suspended, so changes are disabled."
+    }
+  },
+  "Hours": {
+    "title": "Working hours",
+    "loading": "Loading…",
+    "clinicTitle": "Clinic opening hours",
+    "clinicHint": "The starting point for every new dentist. Patients book against each dentist's own hours below.",
+    "dentistsTitle": "Dentists' hours",
+    "dentistsHint": "What patients can actually book. Open a dentist to change their week.",
+    "noDentists": "No active dentists yet. Add them on the Dentists page.",
+    "noHours": "No hours: not bookable",
+    "closed": "Closed",
+    "open": "Open this day",
+    "addShift": "Add another shift",
+    "copyToAll": "Copy to every day",
+    "remove": "Remove shift",
+    "from": "From",
+    "to": "To",
+    "midnightHint": "To end a shift at midnight, set the end time to {midnight}.",
+    "save": "Save week",
+    "saving": "Saving…",
+    "saved": "Saved.",
+    "useClinicHours": "Use clinic hours",
+    "copyConfirm": "Replace this dentist's week with the clinic's opening hours?",
+    "errors": {
+      "invalid_input": "Each shift needs a start before its end.",
+      "overlap": "Two shifts on the same day overlap.",
+      "not_found": "That dentist no longer exists.",
+      "unauthenticated": "Your session has ended. Sign in again.",
+      "forbidden": "Only the clinic owner can change hours.",
       "clinic_suspended": "This clinic is suspended, so changes are disabled."
     }
   }
