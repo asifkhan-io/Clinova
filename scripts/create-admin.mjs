@@ -46,8 +46,10 @@ try {
     );
     userId = user.rows[0].id;
     await client.query(
-      "insert into accounts (account_id, provider_id, user_id, password) values ($1, 'credential', $1, $2)",
-      [userId, await hashPassword(password)],
+      // account_id is text, user_id is uuid: separate parameters, or Postgres
+      // cannot infer one type for both.
+      "insert into accounts (account_id, provider_id, user_id, password) values ($1, 'credential', $2, $3)",
+      [String(userId), userId, await hashPassword(password)],
     );
     console.log(`Created user ${email}`);
   } else {
