@@ -28,6 +28,13 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
+  advanced: {
+    database: {
+      // uuid, not Better Auth's default random strings: every Clinova table
+      // references users.id as a uuid (database-design.md §3).
+      generateId: "uuid",
+    },
+  },
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL,
 });
