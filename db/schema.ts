@@ -1,11 +1,13 @@
 import { sql } from "drizzle-orm";
 import {
+  bigserial,
   boolean,
   check,
   date,
   foreignKey,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -478,5 +480,111 @@ export const scheduleOverrideIntervals = pgTable(
   (t) => [
     index("schedule_override_intervals_override_idx").on(t.overrideId),
     check("schedule_override_intervals_bounds", minuteBounds(t.startMinute, t.endMinute)),
+  ],
+);
+
+/* ============================ patients & appointments ============================ */
+// database-design.md §5. Patients are NOT users: they never log in (guest booking).
+
+/* ---------------------------------- patients ---------------------------------- */
+// Four columns of patient data and nothing else: no date of birth, no national
+// ID, no notes, no reason for visit. Giving sensitive fields nowhere to live is
+// how this stays a booking product and not a medical record (scope §5, §8).
+
+export const patients = pgTable(
+  "patients",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    fullName: text("full_name").notNull(),
+    phoneE164: text("phone_e164").notNull(),
+    // D8: PDPL lawful basis has to be evidenced somewhere.
+    consentAt: timestamp("consent_at", { withTimezone: true }),
+    consentPolicyVersion: text("consent_policy_version"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // One patient per phone per clinic — the booking flow's upsert targets this.
+    uniqueIndex("patients_clinic_phone_key").on(t.clinicId, t.phoneE164),
+    uniqueIndex("patients_clinic_id_key").on(t.clinicId, t.id), // composite-FK target
+    check("patients_phone_e164", sql`${t.phoneE164} ~ '^\\+[1-9][0-9]{7,14}$'`),
+  ],
+);
+
+/* -------------------------------- appointments -------------------------------- */
+
+export const appointments = pgTable(
+  "appointments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "restrict" }),
+    patientId: uuid("patient_id").notNull(),
+    staffId: uuid("staff_id").notNull(),
+    serviceId: uuid("service_id").notNull(),
+    // Always UTC. The clinic's IANA zone lives on `clinics`. No duration column:
+    // editing a service's duration must never move past appointments.
+    startAt: timestamp("start_at", { withTimezone: true }).notNull(),
+    endAt: timestamp("end_at", { withTimezone: true }).notNull(),
+    status: appointmentStatusEnum("status").notNull().default("booked"),
+    source: appointmentSourceEnum("source").notNull(),
+    // The patient's signed link: sha256 of a 32-byte token. The id never goes in a URL.
+    accessTokenHash: text("access_token_hash").notNull(),
+    rescheduleCount: smallint("reschedule_count").notNull().default(0),
+    icsSequence: integer("ics_sequence").notNull().default(0),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    cancelledBy: cancelledByEnum("cancelled_by"),
+    cancelledByUserId: uuid("cancelled_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    statusUpdatedAt: timestamp("status_updated_at", { withTimezone: true }),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }), // NULL = online
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("appointments_token_key").on(t.accessTokenHash),
+    index("appointments_clinic_start_idx").on(t.clinicId, t.startAt),
+    // The availability hot path: exactly the rows the no-overlap constraint guards.
+    index("appointments_staff_start_idx")
+      .on(t.staffId, t.startAt)
+      .where(sql`${t.status} IN ('booked', 'completed')`),
+    index("appointments_patient_idx").on(t.clinicId, t.patientId, t.startAt.desc()),
+    check("appointments_time_order", sql`${t.endAt} > ${t.startAt}`),
+    check("appointments_reschedule_nonneg", sql`${t.rescheduleCount} >= 0`),
+    check(
+      "appointments_cancel_consistency",
+      sql`(${t.status} = 'cancelled' AND ${t.cancelledAt} IS NOT NULL AND ${t.cancelledBy} IS NOT NULL) OR (${t.status} <> 'cancelled' AND ${t.cancelledAt} IS NULL)`,
+    ),
+    // RESTRICT, not cascade: booking history is never deleted by a config change.
+    foreignKey({ columns: [t.clinicId, t.patientId], foreignColumns: [patients.clinicId, patients.id], name: "appointments_patient_fk" }).onDelete("restrict"),
+    foreignKey({ columns: [t.clinicId, t.staffId], foreignColumns: [staff.clinicId, staff.id], name: "appointments_staff_fk" }).onDelete("restrict"),
+    foreignKey({ columns: [t.clinicId, t.serviceId], foreignColumns: [services.clinicId, services.id], name: "appointments_service_fk" }).onDelete("restrict"),
+  ],
+);
+
+/* ---------------------------------- audit log ---------------------------------- */
+// Append-only (REVOKE in the constraints migration). metadata holds ids,
+// timestamps and enum values ONLY — never a patient's name or phone.
+
+export const auditLog = pgTable(
+  "audit_log",
+  {
+    id: bigserial("id", { mode: "bigint" }).primaryKey(),
+    clinicId: uuid("clinic_id").references(() => clinics.id, { onDelete: "set null" }),
+    actorType: actorTypeEnum("actor_type").notNull(),
+    actorUserId: uuid("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    action: text("action").notNull(), // 'appointment.created', …
+    entityType: text("entity_type").notNull(),
+    entityId: uuid("entity_id"),
+    metadata: jsonb("metadata"),
+    ipHash: text("ip_hash"), // hashed, never a raw address
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("audit_log_clinic_time_idx").on(t.clinicId, t.createdAt.desc()),
+    index("audit_log_entity_idx").on(t.entityType, t.entityId, t.createdAt.desc()),
   ],
 );
