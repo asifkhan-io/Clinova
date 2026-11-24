@@ -8,6 +8,7 @@ const items = [
   { href: "/dashboard/services", key: "services" },
   { href: "/dashboard/dentists", key: "dentists" },
   { href: "/dashboard/hours", key: "hours" },
+  { href: "/dashboard/closures", key: "closures" },
 ] as const;
 
 export function DashboardNav() {

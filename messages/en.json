@@ -93,7 +93,8 @@
     "overview": "Overview",
     "services": "Services",
     "dentists": "Dentists",
-    "hours": "Hours"
+    "hours": "Hours",
+    "closures": "Closures"
   },
   "Services": {
     "title": "Services",
@@ -186,6 +187,45 @@
       "not_found": "That dentist no longer exists.",
       "unauthenticated": "Your session has ended. Sign in again.",
       "forbidden": "Only the clinic owner can change hours.",
+      "clinic_suspended": "This clinic is suspended, so changes are disabled."
+    }
+  },
+  "Closures": {
+    "title": "Closures & special hours",
+    "loading": "Loading…",
+    "addTitle": "Add a closure or special hours",
+    "addHint": "For holidays like Eid, Ramadan hours, or a dentist's leave. A dentist's own entry wins over the clinic's on the same day.",
+    "appliesTo": "Applies to",
+    "wholeClinic": "Whole clinic",
+    "kind": "Type",
+    "closed": "Closed",
+    "specialHours": "Special hours",
+    "from": "From",
+    "to": "To",
+    "labelEn": "Name (English, optional)",
+    "labelAr": "Name (Arabic, optional)",
+    "hoursOnThoseDays": "Open hours on those days",
+    "addShift": "Add another shift",
+    "remove": "Remove shift",
+    "ramadanHint": "Ramadan example: 10:00–14:00 and 20:00–00:00 (midnight).",
+    "add": "Add",
+    "saving": "Saving…",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this entry? Those dates go back to normal hours.",
+    "upcoming": "Upcoming and current",
+    "noneUpcoming": "Nothing scheduled.",
+    "past": "Past ({count})",
+    "closedAllDay": "Closed all day",
+    "errors": {
+      "invalid_input": "Please check the dates and times.",
+      "date_order": "The end date is before the start date.",
+      "too_long": "An entry can cover at most one year.",
+      "no_intervals": "Special hours need at least one shift.",
+      "overlap_intervals": "Two shifts overlap.",
+      "overlap": "These dates overlap another entry for the same clinic or dentist. Delete or change that one first.",
+      "not_found": "Not found.",
+      "unauthenticated": "Your session has ended. Sign in again.",
+      "forbidden": "Only the clinic owner can change closures.",
       "clinic_suspended": "This clinic is suspended, so changes are disabled."
     }
   }

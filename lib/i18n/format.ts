@@ -42,3 +42,16 @@ export function weekdayName(locale: string, dayOfWeek: number) {
     new Date(Date.UTC(2023, 0, 1 + dayOfWeek)),
   );
 }
+
+/** A calendar date ("2027-03-10", no time, no zone) -> "Wed, 10 Mar 2027", Gregorian, Latin digits. */
+export function clinicDate(locale: string, isoDate: string) {
+  return new Intl.DateTimeFormat(locale, {
+    calendar: "gregory",
+    numberingSystem: "latn",
+    timeZone: "UTC",
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(`${isoDate}T00:00:00Z`));
+}
