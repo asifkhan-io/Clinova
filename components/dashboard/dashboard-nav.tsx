@@ -6,6 +6,7 @@ import { Link, usePathname } from "@/lib/i18n/navigation";
 const items = [
   { href: "/dashboard", key: "overview" },
   { href: "/dashboard/services", key: "services" },
+  { href: "/dashboard/dentists", key: "dentists" },
 ] as const;
 
 export function DashboardNav() {

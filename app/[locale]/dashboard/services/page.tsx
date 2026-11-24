@@ -30,8 +30,9 @@ async function ServicesBody({ locale }: { locale: Locale }) {
   try {
     ctx = await requireClinicAccess();
   } catch (e) {
-    if (e instanceof AuthError && e.code === "unauthenticated") redirect({ href: "/sign-in", locale });
-    notFound();
+    if (!(e instanceof AuthError)) throw e; // a real failure must surface, not hide as a 404
+    if (e.code === "unauthenticated") redirect({ href: "/sign-in", locale });
+    notFound(); // signed in but not a member of any clinic
   }
   const t = await getTranslations({ locale, namespace: "Services" });
   const services = await listServices(ctx);

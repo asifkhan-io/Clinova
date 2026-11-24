@@ -34,10 +34,9 @@ async function AdminBody({ locale }: { locale: Locale }) {
   try {
     ctx = await requirePlatformAdmin();
   } catch (e) {
-    if (e instanceof AuthError && e.code === "unauthenticated") {
-      redirect({ href: "/sign-in", locale });
-    }
-    notFound(); // don't reveal that an admin area exists
+    if (!(e instanceof AuthError)) throw e; // a real failure must surface, not hide as a 404
+    if (e.code === "unauthenticated") redirect({ href: "/sign-in", locale });
+    notFound(); // signed in but not an admin: don't reveal that an admin area exists
   }
   const t = await getTranslations({ locale, namespace: "Admin" });
   const clinics = await listClinics(ctx);

@@ -90,7 +90,8 @@
   "Nav": {
     "label": "Clinic",
     "overview": "Overview",
-    "services": "Services"
+    "services": "Services",
+    "dentists": "Dentists"
   },
   "Services": {
     "title": "Services",
@@ -120,6 +121,38 @@
       "not_found": "That service no longer exists.",
       "unauthenticated": "Your session has ended. Sign in again.",
       "forbidden": "Only the clinic owner can change services.",
+      "clinic_suspended": "This clinic is suspended, so changes are disabled."
+    }
+  },
+  "Dentists": {
+    "title": "Dentists",
+    "loading": "Loading…",
+    "addTitle": "Add a dentist",
+    "addHint": "A new dentist starts with all active services and the clinic's opening hours. You can change both afterwards.",
+    "listTitle": "Your dentists ({count})",
+    "empty": "No dentists yet. Add your first one above.",
+    "nameEn": "Name (English)",
+    "nameAr": "Name (Arabic)",
+    "titleEn": "Title (English, optional)",
+    "titleAr": "Title (Arabic, optional)",
+    "add": "Add dentist",
+    "save": "Save changes",
+    "saving": "Saving…",
+    "edit": "Edit",
+    "cancel": "Cancel",
+    "deactivate": "Deactivate",
+    "activate": "Activate",
+    "inactive": "Inactive",
+    "chooseServices": "Services",
+    "servicesLegend": "Services {name} performs",
+    "saveServices": "Save services",
+    "noServices": "No services: patients can't book this dentist.",
+    "noServicesYet": "Add services first, on the Services page.",
+    "errors": {
+      "invalid_input": "Please check the fields: both names are required.",
+      "not_found": "That dentist no longer exists.",
+      "unauthenticated": "Your session has ended. Sign in again.",
+      "forbidden": "Only the clinic owner can change dentists.",
       "clinic_suspended": "This clinic is suspended, so changes are disabled."
     }
   }
