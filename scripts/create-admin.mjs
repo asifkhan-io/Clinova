@@ -1,4 +1,4 @@
-// Creates (or promotes) the platform admin account: you.
+// Creates the platform admin account (you), or resets its password if it exists.
 // Usage: npm run create-admin -- you@example.com "Your Name"
 // The password is asked for interactively, so it never lands in shell history.
 //
@@ -53,7 +53,22 @@ try {
     );
     console.log(`Created user ${email}`);
   } else {
-    console.log(`User ${email} already exists; password left unchanged`);
+    // Re-running resets the password: this is the recovery path until the app
+    // has its own password-reset flow.
+    const hash = await hashPassword(password);
+    const updated = await client.query(
+      "update accounts set password = $2, updated_at = now() where user_id = $1 and provider_id = 'credential'",
+      [userId, hash],
+    );
+    if (updated.rowCount === 0) {
+      await client.query(
+        "insert into accounts (account_id, provider_id, user_id, password) values ($1, 'credential', $2, $3)",
+        [String(userId), userId, hash],
+      );
+    }
+    // Sign out every existing session, so an old password's sessions die with it.
+    await client.query("delete from sessions where user_id = $1", [userId]);
+    console.log(`User ${email} already existed; password reset`);
   }
 
   await client.query(
