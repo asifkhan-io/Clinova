@@ -277,7 +277,9 @@
       "unauthenticated": "Your session has ended. Sign in again.",
       "forbidden": "Only the clinic owner can change settings.",
       "clinic_suspended": "This clinic is suspended, so changes are disabled."
-    }
+    },
+    "publicPage": "Your booking page",
+    "publicPageHint": "Share this link with patients (WhatsApp, Instagram, Google Maps)."
   },
   "Setup": {
     "title": "Setup checklist",
@@ -293,6 +295,43 @@
       "dentistServices": "Every dentist performs at least one service",
       "hours": "Every dentist has working hours",
       "bookingOn": "Turn on online booking"
+    }
+  },
+  "Booking": {
+    "loading": "Loading…",
+    "map": "Open in Maps",
+    "closedForBooking": "This clinic isn't taking online bookings right now. Please call to book.",
+    "noServices": "No services are available to book online yet. Please call to book.",
+    "priceOnRequest": "Price on request",
+    "step1": "1. Choose a service",
+    "step2": "2. Choose a dentist",
+    "step3": "3. Choose a day and time",
+    "step4": "4. Your details",
+    "anyDentist": "Any available dentist",
+    "anyDentistHint": "Shows the most times",
+    "minutes": "{count} min",
+    "loadingTimes": "Finding free times…",
+    "timesError": "Couldn't load times. Please try again.",
+    "noTimes": "No free times on this day. Try another day.",
+    "pickTime": "Available times",
+    "fullName": "Full name",
+    "phone": "Mobile number",
+    "email": "Email (optional)",
+    "emailHint": "We'll send your booking link here. Not stored.",
+    "consent": "I agree that {clinic} stores my name and phone number to manage this appointment.",
+    "book": "Book {time}",
+    "booking": "Booking…",
+    "pickAnother": "Pick another time",
+    "confirmed": "You're booked!",
+    "confirmedHint": "{clinic} has your booking. Take a screenshot of this page for your records.",
+    "errors": {
+      "invalid_input": "Please check your details.",
+      "phone": "Enter a mobile number like 05X XXX XXXX or +966…",
+      "consent": "Please tick the box to agree, so the clinic can keep your booking.",
+      "not_found": "This clinic page no longer exists.",
+      "booking_closed": "This clinic just stopped taking online bookings. Please call to book.",
+      "slot_unavailable": "That time is no longer available.",
+      "slot_taken": "Someone booked that time a moment ago."
     }
   }
 }

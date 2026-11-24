@@ -19,6 +19,19 @@ async function busyForDay(scope: ClinicScope, date: string, timeZone: string, bu
 }
 
 /**
+ * Existing bookings for every dentist who performs a service, on one local
+ * date. Shared by the public availability endpoint and createPublicBooking, so
+ * the grid a patient sees and the check at booking time can't disagree.
+ */
+export async function loadBusyForDate(scope: ClinicScope, serviceId: string, date: string) {
+  const rules = await loadClinicRules(scope);
+  const providers = await loadServiceProviders(scope, serviceId);
+  if (!rules || !providers) return new Map<string, { startMs: number; endMs: number }[]>();
+  const { from, to } = await busyForDay(scope, date, rules.timezone, rules.bufferMinutes);
+  return loadBusy(scope, providers.staffIds, from, to);
+}
+
+/**
  * The money path (Phase 5). The client's chosen slot is a REQUEST, never a fact:
  * availability is recomputed here from the database, and the exclusion
  * constraint has the last word if two patients race for the same slot.

@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { BookingRulesForm, BookingSwitch, ProfileForm } from "@/components/settings/settings-forms";
+import { Link } from "@/lib/i18n/navigation";
 import { resolveLocale } from "@/lib/i18n/server";
 import { requireClinicPage } from "@/server/auth/page-guards";
 import { getOwnClinic } from "@/server/db/repositories/clinics";
@@ -34,6 +35,13 @@ async function SettingsBody({ locale }: { locale: Locale }) {
       <section className="flex flex-col gap-3 rounded-lg border p-4">
         <h2 className="font-semibold">{t("bookingTitle")}</h2>
         <BookingSwitch enabled={clinic.bookingEnabled} ready={checklist.readyToBook} />
+        <div className="flex flex-col gap-1 border-t pt-3 text-sm">
+          <span className="font-medium">{t("publicPage")}</span>
+          <Link href={`/c/${clinic.slug}`} dir="ltr" className="break-all underline">
+            /{locale}/c/{clinic.slug}
+          </Link>
+          <span className="opacity-70">{t("publicPageHint")}</span>
+        </div>
       </section>
       <section className="flex flex-col gap-3 rounded-lg border p-4">
         <h2 className="font-semibold">{t("profileTitle")}</h2>
