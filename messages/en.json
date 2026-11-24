@@ -95,7 +95,8 @@
     "dentists": "Dentists",
     "hours": "Hours",
     "closures": "Closures",
-    "settings": "Settings"
+    "settings": "Settings",
+    "admin": "Manage clinics"
   },
   "Services": {
     "title": "Services",

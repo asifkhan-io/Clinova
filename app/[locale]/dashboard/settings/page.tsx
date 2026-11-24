@@ -3,10 +3,8 @@ import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { BookingRulesForm, BookingSwitch, ProfileForm } from "@/components/settings/settings-forms";
-import { redirect } from "@/lib/i18n/navigation";
 import { resolveLocale } from "@/lib/i18n/server";
-import { AuthError } from "@/server/auth/errors";
-import { requireClinicAccess } from "@/server/auth/guards";
+import { requireClinicPage } from "@/server/auth/page-guards";
 import { getOwnClinic } from "@/server/db/repositories/clinics";
 import { getSetupChecklist } from "@/server/services/onboarding";
 
@@ -24,15 +22,7 @@ export default async function SettingsPage() {
 }
 
 async function SettingsBody({ locale }: { locale: Locale }) {
-  let ctx;
-  try {
-    // Owner only: these settings change what patients see and can book.
-    ctx = await requireClinicAccess("clinic_owner");
-  } catch (e) {
-    if (!(e instanceof AuthError)) throw e;
-    if (e.code === "unauthenticated") redirect({ href: "/sign-in", locale });
-    notFound();
-  }
+  const ctx = await requireClinicPage(locale, "clinic_owner");
   const t = await getTranslations({ locale, namespace: "Settings" });
   const [clinic, checklist] = await Promise.all([getOwnClinic(ctx), getSetupChecklist(ctx)]);
   if (!clinic) notFound();

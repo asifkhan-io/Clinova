@@ -1,15 +1,12 @@
 import type { Locale } from "next-intl";
 import { getTranslations } from "next-intl/server";
 import { connection } from "next/server";
-import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { DeleteOverrideButton } from "@/components/closures/delete-override-button";
 import { OverrideForm } from "@/components/closures/override-form";
 import { clinicDate, clinicMinutes } from "@/lib/i18n/format";
-import { redirect } from "@/lib/i18n/navigation";
 import { resolveLocale } from "@/lib/i18n/server";
-import { AuthError } from "@/server/auth/errors";
-import { requireClinicAccess } from "@/server/auth/guards";
+import { requireClinicPage } from "@/server/auth/page-guards";
 import { getOwnClinic } from "@/server/db/repositories/clinics";
 import { listOverrides } from "@/server/db/repositories/overrides";
 import { listStaff } from "@/server/db/repositories/staff";
@@ -34,14 +31,7 @@ function clinicToday(timeZone: string) {
 }
 
 async function ClosuresBody({ locale }: { locale: Locale }) {
-  let ctx;
-  try {
-    ctx = await requireClinicAccess();
-  } catch (e) {
-    if (!(e instanceof AuthError)) throw e;
-    if (e.code === "unauthenticated") redirect({ href: "/sign-in", locale });
-    notFound();
-  }
+  const ctx = await requireClinicPage(locale);
   await connection(); // "today" is request-time by definition
   const t = await getTranslations({ locale, namespace: "Closures" });
   const [overrides, dentists, clinic] = await Promise.all([listOverrides(ctx), listStaff(ctx), getOwnClinic(ctx)]);

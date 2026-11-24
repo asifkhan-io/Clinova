@@ -1,14 +1,11 @@
 import type { Locale } from "next-intl";
 import { getTranslations } from "next-intl/server";
-import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { CopyClinicHoursButton } from "@/components/hours/copy-clinic-hours-button";
 import { WeekEditor } from "@/components/hours/week-editor";
 import { WeekSummary } from "@/components/hours/week-summary";
-import { redirect } from "@/lib/i18n/navigation";
 import { resolveLocale } from "@/lib/i18n/server";
-import { AuthError } from "@/server/auth/errors";
-import { requireClinicAccess } from "@/server/auth/guards";
+import { requireClinicPage } from "@/server/auth/page-guards";
 import { listClinicHours, listStaffHours } from "@/server/db/repositories/hours";
 import { listStaff } from "@/server/db/repositories/staff";
 
@@ -27,14 +24,7 @@ export default async function HoursPage() {
 }
 
 async function HoursBody({ locale }: { locale: Locale }) {
-  let ctx;
-  try {
-    ctx = await requireClinicAccess();
-  } catch (e) {
-    if (!(e instanceof AuthError)) throw e;
-    if (e.code === "unauthenticated") redirect({ href: "/sign-in", locale });
-    notFound();
-  }
+  const ctx = await requireClinicPage(locale);
   const t = await getTranslations({ locale, namespace: "Hours" });
   const [clinicWeek, staffWeeks, dentists] = await Promise.all([
     listClinicHours(ctx),

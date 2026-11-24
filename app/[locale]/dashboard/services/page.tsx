@@ -1,14 +1,11 @@
 import type { Locale } from "next-intl";
 import { getTranslations } from "next-intl/server";
-import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { ServiceForm } from "@/components/services/service-form";
 import { ServiceRow } from "@/components/services/service-row";
 import { clinicMoney } from "@/lib/i18n/format";
-import { redirect } from "@/lib/i18n/navigation";
 import { resolveLocale } from "@/lib/i18n/server";
-import { AuthError } from "@/server/auth/errors";
-import { requireClinicAccess } from "@/server/auth/guards";
+import { requireClinicPage } from "@/server/auth/page-guards";
 import { listServices } from "@/server/db/repositories/services";
 
 export default async function ServicesPage() {
@@ -26,14 +23,7 @@ export default async function ServicesPage() {
 }
 
 async function ServicesBody({ locale }: { locale: Locale }) {
-  let ctx;
-  try {
-    ctx = await requireClinicAccess();
-  } catch (e) {
-    if (!(e instanceof AuthError)) throw e; // a real failure must surface, not hide as a 404
-    if (e.code === "unauthenticated") redirect({ href: "/sign-in", locale });
-    notFound(); // signed in but not a member of any clinic
-  }
+  const ctx = await requireClinicPage(locale);
   const t = await getTranslations({ locale, namespace: "Services" });
   const services = await listServices(ctx);
   const canEdit = ctx.role === "clinic_owner" && ctx.clinicStatus !== "suspended";

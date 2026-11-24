@@ -95,7 +95,8 @@
     "dentists": "الأطباء",
     "hours": "ساعات العمل",
     "closures": "الإغلاقات",
-    "settings": "الإعدادات"
+    "settings": "الإعدادات",
+    "admin": "إدارة العيادات"
   },
   "Services": {
     "title": "الخدمات",
