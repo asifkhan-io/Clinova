@@ -5,6 +5,8 @@ import { Link, usePathname } from "@/lib/i18n/navigation";
 
 export const NAV_ITEMS = {
   overview: "/dashboard",
+  calendar: "/dashboard/calendar",
+  patients: "/dashboard/patients",
   services: "/dashboard/services",
   dentists: "/dashboard/dentists",
   hours: "/dashboard/hours",
@@ -23,7 +25,8 @@ export function DashboardNav({ keys }: { keys: NavKey[] }) {
     <nav aria-label={t("label")} className="flex gap-1 overflow-x-auto border-b pb-2">
       {keys.map((key) => {
         const href = NAV_ITEMS[key];
-        const active = pathname === href;
+        // A section stays highlighted on its sub-pages (a patient, a new appointment).
+        const active = href === "/dashboard" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
         return (
           <Link
             key={key}

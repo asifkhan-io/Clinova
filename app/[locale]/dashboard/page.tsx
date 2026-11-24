@@ -9,6 +9,8 @@ import { SetupChecklist } from "@/components/dashboard/setup-checklist";
 import { BookingLink } from "@/components/ui/booking-link";
 import { getOwnClinic } from "@/server/db/repositories/clinics";
 import { getSetupChecklist } from "@/server/services/onboarding";
+import { todaySummary } from "@/server/services/staff-appointments";
+import { clinicTime } from "@/lib/i18n/format";
 
 export default async function DashboardPage() {
   const locale = await resolveLocale();
@@ -68,9 +70,26 @@ async function ClinicSummary({ locale }: { locale: Locale }) {
   const [clinic, checklist] = await Promise.all([getOwnClinic(ctx), getSetupChecklist(ctx)]);
   const t = await getTranslations({ locale, namespace: "Dashboard" });
   if (!clinic) return null;
+  const today = await todaySummary(ctx, clinic.timezone);
 
   return (
     <>
+    <section className="flex flex-col gap-3 rounded-lg border p-4">
+      <h2 className="font-semibold">{t("todayTitle")}</h2>
+      <p>{t("todayCount", { count: today.count })}</p>
+      {today.next && (
+        <p className="text-sm">
+          {t("nextUp")}{" "}
+          <Link href={`/dashboard/appointments/${today.next.id}`} className="font-medium underline">
+            <span dir="ltr" className="inline-block">{clinicTime(locale, clinic.timezone, today.next.startAt)}</span> · {today.next.patient.fullName}
+          </Link>
+        </p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <Link href="/dashboard/calendar" className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-black">{t("openCalendar")}</Link>
+        <Link href="/dashboard/calendar/new" className="rounded-md border px-4 py-2 text-sm">{t("newAppointment")}</Link>
+      </div>
+    </section>
     <section className="flex flex-col gap-2 rounded-lg border p-4">
       <h2 className="font-semibold">{t("bookingPageTitle")}</h2>
       <BookingLink path={`/${locale}/c/${clinic.slug}`} />

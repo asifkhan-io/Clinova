@@ -9,6 +9,9 @@ import { type Busy, generateSlots } from "./generate-slots";
 import { resolveDay } from "./resolve-intervals";
 import { addDays, dayOfWeek, localDate } from "./time";
 
+/** How far ahead staff may book, whatever the online horizon (a typo guard, not a rule). */
+export const STAFF_HORIZON_DAYS = 366;
+
 export type Slot = { staffId: string; startMs: number; endMs: number };
 
 /**
@@ -27,16 +30,17 @@ export async function getSlotsForDate(
     staffId?: string; // omit for "any available dentist"
     busy?: Map<string, Busy[]>;
     /**
-     * Staff-only relaxations (never for patients): staff may book a walk-in for
-     * right now (no minimum notice) and squeeze appointments back to back (no
-     * buffer, D13). Working hours, closures and the no-overlap rule still apply.
+     * Staff-only relaxations for SUGGESTED times (never for patients): no
+     * minimum notice (walk-ins), no buffer (back to back, D13) and no horizon.
+     * Working hours and closures still shape the suggestions; staff can type a
+     * time outside them, and the no-overlap constraint still has the last word.
      */
     staffOverride?: boolean;
   },
 ): Promise<Slot[]> {
   const loaded = await loadClinicRules(scope);
   if (!loaded) return [];
-  const rules = input.staffOverride ? { ...loaded, minLeadMinutes: 0, bufferMinutes: 0 } : loaded;
+  const rules = input.staffOverride ? { ...loaded, minLeadMinutes: 0, bufferMinutes: 0, maxHorizonDays: STAFF_HORIZON_DAYS } : loaded;
   const providers = await loadServiceProviders(scope, input.serviceId);
   if (!providers) return [];
 

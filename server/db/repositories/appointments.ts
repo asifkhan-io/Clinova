@@ -36,7 +36,7 @@ export async function loadBusy(
 }
 
 /** Postgres 23P01 on the no-overlap exclusion constraint: someone got there first. */
-function isDoubleBooking(error: unknown) {
+export function isDoubleBooking(error: unknown) {
   const e = ((error as { cause?: unknown })?.cause ?? error) as { code?: string; constraint?: string };
   return e?.code === "23P01" && e?.constraint === "appointments_no_overlap";
 }

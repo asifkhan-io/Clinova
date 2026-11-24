@@ -24,7 +24,7 @@ async function NavForViewer() {
 
   const keys: NavKey[] = ["overview"];
   if (viewer.membership) {
-    keys.push("services", "dentists", "hours", "closures");
+    keys.push("calendar", "patients", "services", "dentists", "hours", "closures");
     if (viewer.membership.role === "clinic_owner") keys.push("settings");
   }
   if (viewer.isPlatformAdmin) keys.push("admin");

@@ -58,3 +58,8 @@ export function addDays(date: string, n: number): string {
   const [y, m, d] = date.split("-").map(Number) as [number, number, number];
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
 }
+
+/** Today's date on the clinic's calendar. The default argument keeps the clock read out of render code. */
+export function todayIn(timeZone: string, nowMs: number = Date.now()): string {
+  return localDate(nowMs, timeZone);
+}
