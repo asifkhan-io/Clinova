@@ -13,8 +13,21 @@ import * as schema from "../../db/schema";
  * clients before an instance is suspended. Transactions work as before.
  * Supersedes ARCH3.
  */
+/**
+ * Pin certificate verification explicitly. The Vercel-managed DATABASE_URL says
+ * sslmode=require, which pg 8 treats as verify-full but pg 9 will downgrade to
+ * "encrypt without checking the certificate". Asking for verify-full keeps
+ * today's (strict) behaviour and silences pg's warning on every connection.
+ */
+function withStrictSsl(url: string | undefined) {
+  if (!url) return url;
+  const u = new URL(url);
+  u.searchParams.set("sslmode", "verify-full");
+  return u.toString();
+}
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: withStrictSsl(process.env.DATABASE_URL),
   max: 5, // per function instance; PgBouncer multiplexes behind it
 });
 attachDatabasePool(pool);
