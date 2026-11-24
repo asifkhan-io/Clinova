@@ -323,7 +323,6 @@
     "booking": "Booking…",
     "pickAnother": "Pick another time",
     "confirmed": "You're booked!",
-    "confirmedHint": "{clinic} has your booking. Take a screenshot of this page for your records.",
     "errors": {
       "invalid_input": "Please check your details.",
       "phone": "Enter a mobile number like 05X XXX XXXX or +966…",
@@ -333,5 +332,24 @@
       "slot_unavailable": "That time is no longer available.",
       "slot_taken": "Someone booked that time a moment ago."
     }
+  },
+  "Appointment": {
+    "loading": "Loading…",
+    "invalid": "This appointment link is invalid or has expired. Contact the clinic if you need help.",
+    "status": {
+      "booked": "Confirmed",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "no_show": "Missed"
+    },
+    "date": "Date",
+    "time": "Time",
+    "dentist": "Dentist",
+    "address": "Address",
+    "addToCalendar": "Add to calendar",
+    "directions": "Directions",
+    "call": "Call the clinic",
+    "keepPrivate": "Keep this link private: anyone with it can see this appointment.",
+    "changeHint": "Need to change or cancel? Call the clinic for now — online changes are coming soon."
   }
 }

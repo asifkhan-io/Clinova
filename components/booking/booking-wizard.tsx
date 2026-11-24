@@ -2,6 +2,7 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { useActionState, useEffect, useMemo, useState } from "react";
+import { useRouter } from "@/lib/i18n/navigation";
 import { addDays, localDate } from "@/lib/time/zoned";
 import { publicBookAction } from "@/server/actions/public-booking";
 import type { PublicClinicInfo, PublicDentist, PublicService } from "./types";
@@ -26,7 +27,16 @@ export function BookingWizard({ clinic, services, dentists }: { clinic: PublicCl
   const [startMs, setStartMs] = useState<number | null>(null);
   const [slots, setSlots] = useState<Slots>({ state: "idle" });
   const [reload, setReload] = useState(0);
-  const [state, action, pending] = useActionState(publicBookAction, null);
+  const router = useRouter();
+  const [state, action, pending] = useActionState(
+    async (prev: Awaited<ReturnType<typeof publicBookAction>> | null, form: FormData) => {
+      const result = await publicBookAction(prev, form);
+      // The private page is the confirmation; replace() so Back can't resubmit.
+      if (result.ok) router.replace(`/a/${result.data.token}`);
+      return result;
+    },
+    null,
+  );
 
   const service = services.find((s) => s.id === serviceId) ?? null;
   const eligible = dentists.filter((d) => serviceId && d.serviceIds.includes(serviceId));
@@ -62,19 +72,7 @@ export function BookingWizard({ clinic, services, dentists }: { clinic: PublicCl
   };
 
   if (state?.ok) {
-    const who = dentists.find((d) => d.id === state.data.staffId);
-    return (
-      <section role="status" className="flex flex-col gap-3 rounded-lg border border-green-700/40 bg-green-700/5 p-5">
-        <h2 className="text-xl font-semibold">{t("confirmed")}</h2>
-        <p>
-          {service?.name} · {who?.name}
-        </p>
-        <p className="text-lg font-medium">
-          {dayLabel(localDate(state.data.startMs, clinic.timeZone), { weekday: "long", day: "numeric", month: "long" })} · {time(state.data.startMs)}
-        </p>
-        <p className="text-sm opacity-70">{t("confirmedHint", { clinic: clinic.name })}</p>
-      </section>
-    );
+    return <p role="status" className="rounded-lg border p-5 font-medium">{t("confirmed")}</p>;
   }
 
   const taken = state && !state.ok && (state.error === "slot_taken" || state.error === "slot_unavailable");

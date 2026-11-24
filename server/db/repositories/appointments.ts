@@ -1,5 +1,6 @@
 import { and, eq, gt, inArray, lt, sql } from "drizzle-orm";
-import { appointments, auditLog, patients } from "../../../db/schema";
+import { appointments, auditLog, clinics, patients, services, staff } from "../../../db/schema";
+import { db } from "../client";
 import type { ClinicScope } from "./schedule";
 
 const BLOCKING = ["booked", "completed"] as const;
@@ -103,4 +104,44 @@ export async function insertOnlineBooking(
     if (isDoubleBooking(error)) return { ok: false, reason: "slot_taken" };
     throw error;
   }
+}
+
+/**
+ * The patient's view of their booking, found ONLY by the hash of their link's
+ * token. The link stops working 24h after the appointment ends (computed, not
+ * stored — database-design §5.2), so old links can't be replayed forever.
+ * Patient name and phone are deliberately not selected.
+ */
+export async function findAppointmentByToken(tokenHash: string, nowMs: number = Date.now()) {
+  const [row] = await db
+    .select({
+      id: appointments.id,
+      status: appointments.status,
+      startAt: appointments.startAt,
+      endAt: appointments.endAt,
+      icsSequence: appointments.icsSequence,
+      clinic: {
+        slug: clinics.slug,
+        nameEn: clinics.nameEn,
+        nameAr: clinics.nameAr,
+        addressEn: clinics.addressEn,
+        addressAr: clinics.addressAr,
+        phone: clinics.phone,
+        mapsUrl: clinics.mapsUrl,
+        timezone: clinics.timezone,
+        status: clinics.status,
+      },
+      service: { nameEn: services.nameEn, nameAr: services.nameAr, durationMinutes: services.durationMinutes },
+      dentist: { nameEn: staff.displayNameEn, nameAr: staff.displayNameAr },
+    })
+    .from(appointments)
+    .innerJoin(clinics, eq(clinics.id, appointments.clinicId))
+    .innerJoin(services, eq(services.id, appointments.serviceId))
+    .innerJoin(staff, eq(staff.id, appointments.staffId))
+    .where(eq(appointments.accessTokenHash, tokenHash))
+    .limit(1);
+  if (!row) return null;
+  if (row.endAt.getTime() + 24 * 3_600_000 < nowMs) return null;
+  if (row.clinic.status === "suspended") return null;
+  return row;
 }
