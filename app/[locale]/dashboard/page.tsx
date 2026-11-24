@@ -6,6 +6,7 @@ import { Link, redirect } from "@/lib/i18n/navigation";
 import { resolveLocale } from "@/lib/i18n/server";
 import { getViewer, requireClinicAccess } from "@/server/auth/guards";
 import { SetupChecklist } from "@/components/dashboard/setup-checklist";
+import { BookingLink } from "@/components/ui/booking-link";
 import { getOwnClinic } from "@/server/db/repositories/clinics";
 import { getSetupChecklist } from "@/server/services/onboarding";
 
@@ -70,6 +71,13 @@ async function ClinicSummary({ locale }: { locale: Locale }) {
 
   return (
     <>
+    <section className="flex flex-col gap-2 rounded-lg border p-4">
+      <h2 className="font-semibold">{t("bookingPageTitle")}</h2>
+      <BookingLink path={`/${locale}/c/${clinic.slug}`} />
+      <p className={`text-sm ${clinic.bookingEnabled ? "text-green-700" : "text-amber-700"}`}>
+        {clinic.bookingEnabled ? t("bookingOn") : t("bookingOff")}
+      </p>
+    </section>
     {ctx.role === "clinic_owner" && <SetupChecklist steps={checklist.steps} locale={locale} />}
     <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
       <dt className="opacity-70">{t("clinic")}</dt>

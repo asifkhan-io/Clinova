@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { CreateClinicForm } from "@/components/admin/create-clinic-form";
 import { ReissueInviteButton } from "@/components/admin/reissue-invite-button";
+import { BookingLink } from "@/components/ui/booking-link";
 import { Link, redirect } from "@/lib/i18n/navigation";
 import { resolveLocale } from "@/lib/i18n/server";
 import { AuthError } from "@/server/auth/errors";
@@ -45,6 +46,7 @@ async function AdminBody({ locale }: { locale: Locale }) {
     <>
       <section className="flex flex-col gap-4 rounded-lg border p-4">
         <h2 className="font-semibold">{t("newClinic")}</h2>
+        <p className="text-sm opacity-70">{t("newClinicHint")}</p>
         <CreateClinicForm />
       </section>
 
@@ -76,6 +78,7 @@ async function AdminBody({ locale }: { locale: Locale }) {
                   <span>{t("noOwner")}</span>
                 )}
               </div>
+              <BookingLink path={`/${locale}/c/${c.slug}`} />
               {!c.ownerEmail && <ReissueInviteButton clinicId={c.id} />}
             </li>
           ))}

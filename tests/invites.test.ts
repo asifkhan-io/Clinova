@@ -106,3 +106,11 @@ describe("owner invites", () => {
     await expect(newClinic("dupe-slug", "d2@test.local")).rejects.toThrow();
   });
 });
+
+describe("creating a clinic for an email that already has an account", () => {
+  it("is detected up front, case-insensitively, so no unusable invite is made", async () => {
+    const { emailHasAccount } = await import("@/server/db/repositories/admin-clinics");
+    expect(await emailHasAccount(adminCtx, "ADMIN@test.local")).toBe(true);
+    expect(await emailHasAccount(adminCtx, "brand-new-owner@test.local")).toBe(false);
+  });
+});

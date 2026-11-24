@@ -4,11 +4,14 @@
     "description": "Online appointment booking for dental clinics."
   },
   "Home": {
-    "title": "Book your dental appointment online",
-    "subtitle": "Clinova is getting ready. Online booking for dental clinics is coming soon.",
-    "sampleLabel": "Sample appointment",
+    "title": "Clinova",
+    "subtitle": "Online appointment booking for dental clinics, in English and Arabic.",
     "switchLanguage": "العربية",
-    "signIn": "Clinic sign in"
+    "signIn": "Clinic sign in",
+    "patientsTitle": "Booking an appointment?",
+    "patientsBody": "Open the booking link your clinic sent you (on WhatsApp, Instagram or Google Maps). Each clinic has its own link.",
+    "clinicsTitle": "Run a clinic?",
+    "clinicsBody": "Sign in to manage your services, dentists, hours and bookings."
   },
   "SignIn": {
     "title": "Sign in to Clinova",
@@ -31,7 +34,10 @@
       "clinic_owner": "Owner",
       "clinic_staff": "Staff"
     },
-    "manageClinics": "Manage clinics"
+    "manageClinics": "Manage clinics",
+    "bookingPageTitle": "Your booking page",
+    "bookingOn": "Online booking is ON — patients can book with this link.",
+    "bookingOff": "Online booking is OFF — patients see \"not taking online bookings\". Finish the checklist, then turn it on in Settings."
   },
   "Admin": {
     "title": "Platform admin",
@@ -66,8 +72,10 @@
       "no_pending_invite": "This clinic has no pending invite.",
       "unauthenticated": "Your session has ended. Sign in again.",
       "forbidden": "You don't have access to do that.",
-      "clinic_suspended": "This clinic is suspended."
-    }
+      "clinic_suspended": "This clinic is suspended.",
+      "email_has_account": "That email already has a Clinova account, so an invite can't create one for it. Use the owner's own email, or a different address."
+    },
+    "newClinicHint": "Creates the clinic and an invite link for its owner. The owner then signs in with their own email — not this admin account — to set the clinic up."
   },
   "Invite": {
     "title": "Set up your Clinova account",
@@ -351,5 +359,10 @@
     "call": "Call the clinic",
     "keepPrivate": "Keep this link private: anyone with it can see this appointment.",
     "changeHint": "Need to change or cancel? Call the clinic for now — online changes are coming soon."
+  },
+  "BookingLink": {
+    "copy": "Copy link",
+    "copied": "Copied",
+    "open": "Open"
   }
 }

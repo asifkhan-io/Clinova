@@ -4,6 +4,7 @@ import { requirePlatformAdmin } from "@/server/auth/guards";
 import {
   clinicExists,
   createClinicWithOwnerInvite,
+  emailHasAccount,
   getPendingInviteEmail,
   reissueOwnerInvite,
 } from "@/server/db/repositories/admin-clinics";
@@ -17,7 +18,8 @@ export type AdminActionError =
   | AuthErrorCode
   | "invalid_input"
   | "slug_taken"
-  | "no_pending_invite";
+  | "no_pending_invite"
+  | "email_has_account";
 type InviteLinkResult = ActionResult<{ inviteUrl: string }, AdminActionError>;
 
 function inviteUrl(locale: string, token: string) {
@@ -46,6 +48,7 @@ export async function createClinicAction(
     ownerEmail: form.get("ownerEmail"),
   });
   if (!parsed.success) return { ok: false, error: "invalid_input" };
+  if (await emailHasAccount(ctx, parsed.data.ownerEmail)) return { ok: false, error: "email_has_account" };
 
   const { token, hash } = newToken();
   try {
