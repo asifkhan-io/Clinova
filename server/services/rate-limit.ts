@@ -1,8 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { lt, sql } from "drizzle-orm";
-import { rateLimits } from "../../db/schema";
 import { type Database, db } from "../db/client";
+import { countRequest, deleteWindowsBefore } from "../db/repositories/rate-limits";
 
 /**
  * Rate limiting for the public, unauthenticated surface (ARCH2).
@@ -43,7 +42,7 @@ function windowStartFor(bucket: RateBucket, nowMs: number): Date {
   return new Date(Math.floor(nowMs / windowMs) * windowMs);
 }
 
-/** The bucket is part of the hash, so the same address in two buckets cannot be correlated. */
+/** The bucket is part of the hash, so one caller cannot be correlated across buckets. */
 function identifierHash(bucket: RateBucket, identifier: string): string {
   return createHash("sha256").update(`${bucket}:${identifier}`).digest("hex");
 }
@@ -62,30 +61,26 @@ export async function consumeRateLimit(
   nowMs: number = Date.now(),
   database: Database = db,
 ): Promise<boolean> {
-  const windowStart = windowStartFor(bucket, nowMs);
   try {
-    const [row] = await database
-      .insert(rateLimits)
-      .values({ bucket, identifierHash: identifierHash(bucket, identifier), windowStart, count: 1 })
-      .onConflictDoUpdate({
-        target: [rateLimits.bucket, rateLimits.identifierHash, rateLimits.windowStart],
-        set: { count: sql`${rateLimits.count} + 1` },
-      })
-      .returning({ count: rateLimits.count });
-    if (!row) return true;
+    const count = await countRequest(database, {
+      bucket,
+      identifierHash: identifierHash(bucket, identifier),
+      windowStart: windowStartFor(bucket, nowMs),
+    });
+    if (count === null) return true;
     if (Math.random() < SWEEP_PROBABILITY) await sweepRateLimits(nowMs, database);
-    return row.count <= LIMITS[bucket].max;
+    return count <= LIMITS[bucket].max;
   } catch {
     return true;
   }
 }
 
-/** Drop windows that can no longer refuse anything. Safe to call at any time. */
+/** Housekeeping. Safe to call at any time; a failure costs disk, not correctness. */
 export async function sweepRateLimits(nowMs: number = Date.now(), database: Database = db): Promise<void> {
   try {
-    await database.delete(rateLimits).where(lt(rateLimits.windowStart, new Date(nowMs - SWEEP_AGE_MS)));
+    await deleteWindowsBefore(database, new Date(nowMs - SWEEP_AGE_MS));
   } catch {
-    // A failed sweep costs disk, not correctness.
+    // Deliberately swallowed: the sweep is an optimisation, never a gate.
   }
 }
 

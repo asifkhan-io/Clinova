@@ -1,6 +1,6 @@
 import "server-only";
 import { cancelAppointment, moveAppointment } from "../db/repositories/appointments";
-import { getAppointment, insertStaffBooking, listAppointments, setAppointmentOutcome } from "../db/repositories/clinic-appointments";
+import { getAppointment, insertStaffBooking, listAppointments, reissueAccessToken, setAppointmentOutcome } from "../db/repositories/clinic-appointments";
 import { getOwnClinic } from "../db/repositories/clinics";
 import type { ClinicContext } from "../db/repositories/context";
 import { loadServiceProviders } from "../db/repositories/schedule";
@@ -122,4 +122,18 @@ export async function todaySummary(ctx: ClinicContext, timeZone: string, nowMs: 
   const active = list.filter((a) => a.status !== "cancelled");
   const next = active.find((a) => a.status === "booked" && a.endAt.getTime() > nowMs) ?? null;
   return { count: active.length, next };
+}
+
+export type ReissueLinkOutcome = { ok: true; token: string } | { ok: false; reason: "not_found" | "changed" };
+
+/**
+ * A fresh private link for an existing booking (Phase 8b). The staff booking
+ * flow shows the link exactly once, so without this a lost link means
+ * cancelling and rebooking. Issuing a new one immediately kills the old.
+ */
+export async function reissueAppointmentLink(ctx: ClinicContext, appointmentId: string): Promise<ReissueLinkOutcome> {
+  // As at booking: this is the only moment the raw token exists.
+  const { token, hash } = newToken();
+  const result = await reissueAccessToken(ctx, { appointmentId, accessTokenHash: hash });
+  return result.ok ? { ok: true, token } : result;
 }

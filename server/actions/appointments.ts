@@ -7,6 +7,7 @@ import { updatePatient } from "@/server/db/repositories/patients";
 import {
   clinicWallTimeToUtc,
   createStaffAppointment,
+  reissueAppointmentLink,
   staffCancelAppointment,
   staffRescheduleAppointment,
   staffSetOutcome,
@@ -114,4 +115,25 @@ export async function updatePatientAction(_prev: Result | null, form: FormData):
   const parsed = patientEditSchema.safeParse(Object.fromEntries(form));
   if (!parsed.success) return { ok: false, error: fieldError(parsed.error.issues) };
   return done(await updatePatient(ctx, parsed.data.patientId, { fullName: parsed.data.fullName, phoneE164: parsed.data.phone }));
+}
+
+/**
+ * A replacement private link for a booking whose link was lost (Phase 8b).
+ * Shown once, exactly like the original: the raw token is in this result and
+ * nowhere else, and issuing it stops the previous link working immediately.
+ */
+export async function reissueLinkAction(
+  _prev: ActionResult<{ token: string }, AppointmentActionError> | null,
+  form: FormData,
+): Promise<ActionResult<{ token: string }, AppointmentActionError>> {
+  let ctx;
+  try {
+    ctx = await member();
+  } catch (e) {
+    return authFailure(e);
+  }
+  const parsed = z.object({ appointmentId: z.uuid() }).safeParse(Object.fromEntries(form));
+  if (!parsed.success) return { ok: false, error: "invalid_input" };
+  const result = await reissueAppointmentLink(ctx, parsed.data.appointmentId);
+  return result.ok ? { ok: true, data: { token: result.token } } : { ok: false, error: result.reason };
 }

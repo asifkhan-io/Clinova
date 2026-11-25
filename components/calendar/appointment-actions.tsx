@@ -1,9 +1,11 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useActionState } from "react";
+import { BookingLink } from "@/components/ui/booking-link";
 import { useRouter } from "@/lib/i18n/navigation";
-import { cancelAppointmentAction, setOutcomeAction } from "@/server/actions/appointments";
+import { whatsappLink } from "@/lib/whatsapp";
+import { type AppointmentActionError, cancelAppointmentAction, reissueLinkAction, setOutcomeAction } from "@/server/actions/appointments";
 
 type Result = Awaited<ReturnType<typeof cancelAppointmentAction>>;
 
@@ -17,7 +19,8 @@ function useRefreshingAction(action: (prev: Result | null, form: FormData) => Pr
   }, null);
 }
 
-function ErrorLine({ state }: { state: Result | null }) {
+/** Both result shapes reach here: some actions return data, some return nothing. */
+function ErrorLine({ state }: { state: { ok: true } | { ok: false; error: AppointmentActionError } | null }) {
   const te = useTranslations("AppointmentErrors");
   return state && !state.ok ? <p role="alert" className="text-sm text-red-700">{te(state.error)}</p> : null;
 }
@@ -58,6 +61,64 @@ export function OutcomeButtons({ appointmentId }: { appointmentId: string }) {
           {t("noShow")}
         </button>
       </div>
+      <ErrorLine state={state} />
+    </form>
+  );
+}
+
+/**
+ * "Send a new link" (Phase 8b). The staff booking flow shows the private link
+ * once, so a lost link used to mean cancelling and rebooking. The replacement
+ * is shown once too — it only exists in this response — and the old link stops
+ * working the moment this succeeds, which is why it asks first.
+ */
+export function ReissueLinkButton({
+  appointmentId,
+  phoneE164,
+  clinicName,
+  when,
+}: {
+  appointmentId: string;
+  phoneE164: string;
+  clinicName: string;
+  when: { date: string; time: string };
+}) {
+  const t = useTranslations("AppointmentAdmin");
+  const tf = useTranslations("AppointmentForm");
+  const locale = useLocale();
+  const [state, action, pending] = useActionState(reissueLinkAction, null);
+
+  if (state?.ok) {
+    const path = `/${locale}/a/${state.data.token}`;
+    // The absolute URL needs the browser's origin; built on click, not in render.
+    const message = () => tf("linkMessage", { clinic: clinicName, ...when, link: `${window.location.origin}${path}` });
+    return (
+      <section className="flex flex-col gap-2 rounded-lg border p-4">
+        <h2 className="font-semibold">{t("newLinkTitle")}</h2>
+        <p className="text-sm opacity-80">{t("newLinkHint")}</p>
+        <BookingLink path={path} />
+        <button
+          type="button"
+          onClick={() => window.open(whatsappLink(phoneE164, message()), "_blank", "noopener,noreferrer")}
+          className="self-start rounded-md bg-black px-4 py-2 font-medium text-white dark:bg-white dark:text-black"
+        >
+          {tf("sendWhatsApp")}
+        </button>
+      </section>
+    );
+  }
+
+  return (
+    <form action={action} className="flex flex-col gap-2">
+      <input type="hidden" name="appointmentId" value={appointmentId} />
+      <button
+        type="submit"
+        disabled={pending}
+        onClick={(e) => { if (!confirm(t("newLinkConfirm"))) e.preventDefault(); }}
+        className="self-start rounded-md border px-4 py-2 disabled:opacity-50"
+      >
+        {pending ? t("issuingLink") : t("newLink")}
+      </button>
       <ErrorLine state={state} />
     </form>
   );

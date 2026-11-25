@@ -507,6 +507,11 @@
     "remindEn": "In English",
     "remindAr": "بالعربية",
     "call": "Call",
+    "newLink": "Send a new link",
+    "issuingLink": "Issuing…",
+    "newLinkTitle": "New private link",
+    "newLinkHint": "Shown once. Send it to the patient now — the previous link has already stopped working.",
+    "newLinkConfirm": "Issue a new link? The link you sent before will stop working straight away.",
     "reminderText": "Hello {name}, this is a reminder of your appointment at {clinic} on {date} at {time}. Reply here if you need to change it.",
     "status": {
       "booked": "Booked",

@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { z } from "zod";
-import { CancelAppointmentButton, OutcomeButtons } from "@/components/calendar/appointment-actions";
+import { CancelAppointmentButton, OutcomeButtons, ReissueLinkButton } from "@/components/calendar/appointment-actions";
 import { AppointmentForm } from "@/components/calendar/appointment-form";
 import { StatusBadge } from "@/components/calendar/status-badge";
 import { bookingFormOptions } from "@/lib/dashboard/form-options";
@@ -105,6 +105,15 @@ async function AppointmentBody({ locale, params }: { locale: Locale; params: Pro
             <a href={whatsappLink(a.patient.phoneE164, remindEn)} target="_blank" rel="noopener noreferrer" className="rounded-md border px-4 py-2" lang="en">{t("remindEn")}</a>
           </div>
         </section>
+      )}
+
+      {a.status === "booked" && (
+        <ReissueLinkButton
+          appointmentId={a.id}
+          phoneE164={a.patient.phoneE164}
+          clinicName={pick(clinic.nameEn, clinic.nameAr)}
+          when={{ date: clinicDay(locale, tz, a.startAt), time: clinicTime(locale, tz, a.startAt) }}
+        />
       )}
 
       {can.outcome && (

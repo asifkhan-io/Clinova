@@ -233,3 +233,75 @@ describe("online and staff bookings share one calendar", () => {
     expect(r).toEqual({ ok: false, reason: "slot_unavailable" });
   });
 });
+
+/**
+ * Phase 8b. The private link is shown once, so losing it used to mean
+ * cancelling and rebooking. Reissuing must kill the old link immediately,
+ * stay inside the clinic, and leave the appointment itself untouched.
+ */
+describe("reissuing a private link", () => {
+  const FREE = "2027-01-05";
+
+  it("issues a working link and kills the old one", async () => {
+    const booked = await walkIn({ startMs: at(9, 0, FREE) });
+    if (!booked.ok) throw new Error("setup: booking failed");
+
+    const again = await staffSvc.reissueAppointmentLink(ctx, booked.appointmentId);
+    if (!again.ok) throw new Error(`setup: reissue failed (${again.reason})`);
+
+    expect(again.token).not.toBe(booked.token);
+    expect(await getPatientAppointment(hashToken(booked.token), NOW)).toBeNull();
+    expect(await getPatientAppointment(hashToken(again.token), NOW)).not.toBeNull();
+  });
+
+  it("leaves the appointment itself alone, so a calendar entry and an open screen stay valid", async () => {
+    const booked = await walkIn({ startMs: at(10, 0, FREE) });
+    if (!booked.ok) throw new Error("setup: booking failed");
+    const before = await row(booked.appointmentId);
+
+    await staffSvc.reissueAppointmentLink(ctx, booked.appointmentId);
+    const after = await row(booked.appointmentId);
+
+    expect(after.icsSequence).toBe(before.icsSequence);
+    expect(after.startAt).toEqual(before.startAt);
+    expect(after.staffId).toBe(before.staffId);
+    expect(after.status).toBe("booked");
+    expect(after.accessTokenHash).not.toBe(before.accessTokenHash);
+  });
+
+  it("records who replaced the link, and never the link itself", async () => {
+    const booked = await walkIn({ startMs: at(11, 0, FREE) });
+    if (!booked.ok) throw new Error("setup: booking failed");
+    const again = await staffSvc.reissueAppointmentLink(ctx, booked.appointmentId);
+    if (!again.ok) throw new Error("setup: reissue failed");
+
+    const [entry] = await db
+      .select()
+      .from(auditLog)
+      .where(and(eq(auditLog.entityId, booked.appointmentId), eq(auditLog.action, "appointment.link_reissued")));
+
+    expect(entry?.actorUserId).toBe(ctx.userId);
+    expect(entry?.clinicId).toBe(ctx.clinicId);
+    const recorded = JSON.stringify(entry?.metadata ?? {});
+    expect(recorded).not.toContain(again.token);
+    expect(recorded).not.toContain(hashToken(again.token));
+  });
+
+  it("refuses an appointment that belongs to another clinic", async () => {
+    const booked = await walkIn({ startMs: at(12, 0, FREE) });
+    if (!booked.ok) throw new Error("setup: booking failed");
+
+    expect(await staffSvc.reissueAppointmentLink(other, booked.appointmentId)).toEqual({ ok: false, reason: "not_found" });
+    // The real link still works: the refusal changed nothing.
+    expect(await getPatientAppointment(hashToken(booked.token), NOW)).not.toBeNull();
+  });
+
+  it("refuses once there is nothing left to manage", async () => {
+    const booked = await walkIn({ startMs: at(13, 0, FREE) });
+    if (!booked.ok) throw new Error("setup: booking failed");
+    const current = await row(booked.appointmentId);
+    await staffSvc.staffCancelAppointment(ctx, { appointmentId: booked.appointmentId, expectedSequence: current.icsSequence }, NOW);
+
+    expect(await staffSvc.reissueAppointmentLink(ctx, booked.appointmentId)).toEqual({ ok: false, reason: "changed" });
+  });
+});
