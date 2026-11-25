@@ -56,7 +56,7 @@
     "ownerEmail": "Owner's email",
     "create": "Create clinic and invite",
     "creating": "Creating…",
-    "inviteReady": "Invite link — send it to the owner:",
+    "inviteReady": "Invite link — send it to the clinic's owner. It creates THEIR account; it is not a sign-in link, so don't open it yourself.",
     "copy": "Copy link",
     "copied": "Copied",
     "inviteOnce": "This link is shown only once and expires in 7 days. If it is lost, create a new one.",
@@ -99,7 +99,9 @@
       "password_mismatch": "The passwords don't match.",
       "invalid": "This invite link is invalid, already used, or expired.",
       "account_exists": "An account with this email already exists. Contact Clinova support."
-    }
+    },
+    "accountExists": "{email} already has a Clinova account, so this invite link can't create another one. If that's you, just sign in. If you're setting up a different person as the owner, ask Clinova for an invite to their own email.",
+    "signIn": "Sign in"
   },
   "Nav": {
     "label": "Clinic",

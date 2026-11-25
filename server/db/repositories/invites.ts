@@ -23,7 +23,12 @@ export async function findValidInvite(tokenHash: string) {
       ),
     )
     .limit(1);
-  return rows[0] ?? null;
+  const invite = rows[0];
+  if (!invite) return null;
+  // An invite can only CREATE an account. If this email already has one, the
+  // page says so up front instead of showing a form that can never succeed.
+  const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, invite.email.toLowerCase())).limit(1);
+  return { ...invite, accountExists: existing.length > 0 };
 }
 
 export type AcceptResult =

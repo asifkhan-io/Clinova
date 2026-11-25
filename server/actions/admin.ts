@@ -75,8 +75,19 @@ export async function reissueInviteAction(
   if (!/^[0-9a-f-]{36}$/i.test(clinicId) || !(await clinicExists(ctx, clinicId))) {
     return { ok: false, error: "invalid_input" };
   }
-  const email = await getPendingInviteEmail(ctx, clinicId);
+  // The admin can correct the address here. Blank means "same as before".
+  const typed = String(form.get("ownerEmail") ?? "").trim();
+  let email: string | null;
+  if (typed) {
+    const parsed = createClinicSchema.shape.ownerEmail.safeParse(typed);
+    if (!parsed.success) return { ok: false, error: "invalid_input" };
+    email = parsed.data;
+  } else {
+    email = await getPendingInviteEmail(ctx, clinicId);
+  }
   if (!email) return { ok: false, error: "no_pending_invite" };
+  // Same rule as creating a clinic: an invite for an existing account is a dead link.
+  if (await emailHasAccount(ctx, email)) return { ok: false, error: "email_has_account" };
 
   const { token, hash } = newToken();
   await reissueOwnerInvite(ctx, clinicId, email, hash);

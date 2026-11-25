@@ -79,7 +79,7 @@ async function AdminBody({ locale }: { locale: Locale }) {
                 )}
               </div>
               <BookingLink path={`/${locale}/c/${c.slug}`} />
-              {!c.ownerEmail && <ReissueInviteButton clinicId={c.id} />}
+              {!c.ownerEmail && <ReissueInviteButton clinicId={c.id} email={c.pendingInviteEmail} />}
             </li>
           ))}
         </ul>
