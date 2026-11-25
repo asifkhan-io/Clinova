@@ -23,12 +23,12 @@ async function busyForDay(scope: ClinicScope, date: string, timeZone: string, bu
  * date. Shared by the public availability endpoint and createPublicBooking, so
  * the grid a patient sees and the check at booking time can't disagree.
  */
-export async function loadBusyForDate(scope: ClinicScope, serviceId: string, date: string) {
+export async function loadBusyForDate(scope: ClinicScope, serviceId: string, date: string, excludeAppointmentId?: string) {
   const rules = await loadClinicRules(scope);
   const providers = await loadServiceProviders(scope, serviceId);
   if (!rules || !providers) return new Map<string, { startMs: number; endMs: number }[]>();
   const { from, to } = await busyForDay(scope, date, rules.timezone, rules.bufferMinutes);
-  return loadBusy(scope, providers.staffIds, from, to);
+  return loadBusy(scope, providers.staffIds, from, to, excludeAppointmentId);
 }
 
 /**

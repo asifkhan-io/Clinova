@@ -8,6 +8,20 @@ import type { AdminContext } from "./context";
 const INVITE_TTL_DAYS = 7;
 const TRIAL_DAYS = 30;
 
+/**
+ * An invite always creates a NEW account (an existing account can't accept one
+ * in the MVP), so creating a clinic for an email that already has an account
+ * would produce an invite that can never be used. Checked up front.
+ */
+export async function emailHasAccount(ctx: AdminContext, email: string) {
+  const rows = await ctx.db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, email.toLowerCase()))
+    .limit(1);
+  return rows.length > 0;
+}
+
 export async function listClinics(ctx: AdminContext) {
   // Three small queries merged in code, rather than correlated subqueries:
   // a platform has tens of clinics, and typed builder queries beat raw SQL here.

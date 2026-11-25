@@ -4,11 +4,14 @@
     "description": "Online appointment booking for dental clinics."
   },
   "Home": {
-    "title": "Book your dental appointment online",
-    "subtitle": "Clinova is getting ready. Online booking for dental clinics is coming soon.",
-    "sampleLabel": "Sample appointment",
+    "title": "Clinova",
+    "subtitle": "Online appointment booking for dental clinics, in English and Arabic.",
     "switchLanguage": "العربية",
-    "signIn": "Clinic sign in"
+    "signIn": "Clinic sign in",
+    "patientsTitle": "Booking an appointment?",
+    "patientsBody": "Open the booking link your clinic sent you (on WhatsApp, Instagram or Google Maps). Each clinic has its own link.",
+    "clinicsTitle": "Run a clinic?",
+    "clinicsBody": "Sign in to manage your services, dentists, hours and bookings."
   },
   "SignIn": {
     "title": "Sign in to Clinova",
@@ -31,7 +34,15 @@
       "clinic_owner": "Owner",
       "clinic_staff": "Staff"
     },
-    "manageClinics": "Manage clinics"
+    "manageClinics": "Manage clinics",
+    "bookingPageTitle": "Your booking page",
+    "bookingOn": "Online booking is ON — patients can book with this link.",
+    "bookingOff": "Online booking is OFF — patients see \"not taking online bookings\". Finish the checklist, then turn it on in Settings.",
+    "todayTitle": "Today",
+    "todayCount": "{count, plural, =0 {No appointments today.} one {# appointment today.} other {# appointments today.}}",
+    "nextUp": "Next:",
+    "openCalendar": "Open calendar",
+    "newAppointment": "New appointment"
   },
   "Admin": {
     "title": "Platform admin",
@@ -45,7 +56,7 @@
     "ownerEmail": "Owner's email",
     "create": "Create clinic and invite",
     "creating": "Creating…",
-    "inviteReady": "Invite link — send it to the owner:",
+    "inviteReady": "Invite link — send it to the clinic's owner. It creates THEIR account; it is not a sign-in link, so don't open it yourself.",
     "copy": "Copy link",
     "copied": "Copied",
     "inviteOnce": "This link is shown only once and expires in 7 days. If it is lost, create a new one.",
@@ -66,8 +77,10 @@
       "no_pending_invite": "This clinic has no pending invite.",
       "unauthenticated": "Your session has ended. Sign in again.",
       "forbidden": "You don't have access to do that.",
-      "clinic_suspended": "This clinic is suspended."
-    }
+      "clinic_suspended": "This clinic is suspended.",
+      "email_has_account": "That email already has a Clinova account, so an invite can't create one for it. Use the owner's own email, or a different address."
+    },
+    "newClinicHint": "Creates the clinic and an invite link for its owner. The owner then signs in with their own email — not this admin account — to set the clinic up."
   },
   "Invite": {
     "title": "Set up your Clinova account",
@@ -86,7 +99,9 @@
       "password_mismatch": "The passwords don't match.",
       "invalid": "This invite link is invalid, already used, or expired.",
       "account_exists": "An account with this email already exists. Contact Clinova support."
-    }
+    },
+    "accountExists": "{email} already has a Clinova account, so this invite link can't create another one. If that's you, just sign in. If you're setting up a different person as the owner, ask Clinova for an invite to their own email.",
+    "signIn": "Sign in"
   },
   "Nav": {
     "label": "Clinic",
@@ -96,7 +111,9 @@
     "hours": "Hours",
     "closures": "Closures",
     "settings": "Settings",
-    "admin": "Manage clinics"
+    "admin": "Manage clinics",
+    "calendar": "Calendar",
+    "patients": "Patients"
   },
   "Services": {
     "title": "Services",
@@ -350,6 +367,180 @@
     "directions": "Directions",
     "call": "Call the clinic",
     "keepPrivate": "Keep this link private: anyone with it can see this appointment.",
-    "changeHint": "Need to change or cancel? Call the clinic for now — online changes are coming soon."
+    "manage": "Change or cancel",
+    "changeTime": "Change time",
+    "cancel": "Cancel appointment",
+    "pickNewDay": "Pick a new day",
+    "pickNewTime": "Pick a new time",
+    "loadingTimes": "Loading times…",
+    "noTimes": "No free times on this day. Try another day.",
+    "timesError": "Couldn't load times. Check your connection and try again.",
+    "moveTo": "Move to {time}",
+    "moving": "Moving…",
+    "close": "Never mind",
+    "moved": "Done — your appointment has been moved. Download the calendar file again to update your calendar.",
+    "cancelConfirmTitle": "Cancel this appointment?",
+    "cancelConfirmBody": "Your time will be given to someone else. To come later, you'll need to book again.",
+    "cancelConfirm": "Yes, cancel it",
+    "keep": "Keep my appointment",
+    "cancelling": "Cancelling…",
+    "cancelledNotice": "This appointment has been cancelled.",
+    "bookAgain": "Book a new appointment",
+    "cutoffPassed": "Online changes close {duration} before the appointment. To change the time, please call the clinic.",
+    "limitReached": "This appointment has already been moved online twice. To change it again, please call the clinic.",
+    "bookingClosed": "The clinic isn't taking online changes right now. To change the time, please call the clinic.",
+    "hours": "{count, plural, one {# hour} other {# hours}}",
+    "minutes": "{count, plural, one {# minute} other {# minutes}}",
+    "errors": {
+      "invalid_input": "Something went wrong. Refresh the page and try again.",
+      "not_found": "This appointment link is invalid or has expired.",
+      "changed": "This appointment was just updated. The page now shows the latest details — please check and try again.",
+      "not_allowed": "This change isn't possible any more. Please call the clinic.",
+      "slot_unavailable": "That time is no longer free. Please pick another.",
+      "slot_taken": "Someone just booked that time. Please pick another."
+    }
+  },
+  "BookingLink": {
+    "copy": "Copy link",
+    "copied": "Copied",
+    "open": "Open"
+  },
+  "Calendar": {
+    "title": "Calendar",
+    "loading": "Loading…",
+    "newAppointment": "New appointment",
+    "day": "Day",
+    "week": "Week",
+    "previous": "Previous",
+    "next": "Next",
+    "today": "Today",
+    "allDentists": "All dentists",
+    "dentist": "Dentist",
+    "date": "Date",
+    "show": "Show",
+    "count": "{count, plural, =0 {No appointments} one {# appointment} other {# appointments}}",
+    "empty": "No appointments on this day.",
+    "emptyWeek": "No appointments this week.",
+    "cancelledList": "Cancelled ({count})",
+    "cancelledMore": "+{count} cancelled",
+    "whatsapp": "WhatsApp",
+    "weekOf": "Week of {date}",
+    "status": {
+      "booked": "Booked",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "no_show": "No-show"
+    }
+  },
+  "AppointmentForm": {
+    "service": "Service",
+    "dentist": "Dentist",
+    "date": "Date",
+    "time": "Time",
+    "suggested": "Free times",
+    "loadingTimes": "Loading free times…",
+    "noSuggestions": "No free times in this dentist's hours on this day. You can still type a time.",
+    "timesError": "Couldn't load free times. You can still type a time.",
+    "outsideSuggestions": "This time isn't in the suggestions (outside working hours, or next to another booking). It will still be booked if the dentist is free.",
+    "patientName": "Patient name",
+    "phone": "Mobile number",
+    "phoneHint": "Saudi numbers can be typed as 05…",
+    "create": "Book appointment",
+    "creating": "Booking…",
+    "save": "Save changes",
+    "saving": "Saving…",
+    "noDentist": "No active dentist performs this service yet. Link one under Dentists.",
+    "created": "Booked: {date} at {time}.",
+    "sendLinkTitle": "Send the patient their link",
+    "sendLinkHint": "With this private link the patient can see, change or cancel the appointment. It's shown only now — send or copy it before leaving this page.",
+    "sendWhatsApp": "Send on WhatsApp",
+    "linkMessage": "Your appointment at {clinic} is booked for {date} at {time}. Details, changes or cancellation: {link}",
+    "openAppointment": "Open appointment",
+    "another": "Book another",
+    "saved": "Saved."
+  },
+  "AppointmentErrors": {
+    "unauthenticated": "Your session has ended. Sign in again.",
+    "forbidden": "Your account can't do this.",
+    "clinic_suspended": "This clinic's account is suspended, so changes are paused. Contact Clinova.",
+    "invalid_input": "Something in the form isn't right. Check it and try again.",
+    "phone": "Enter a valid mobile number, e.g. 05XXXXXXXX or +966…",
+    "invalid_time": "Pick a time from today onwards (and within a year).",
+    "not_bookable": "This dentist doesn't perform this service. Link them under Dentists, or pick another.",
+    "slot_taken": "The dentist already has an appointment that overlaps this time.",
+    "not_found": "This appointment no longer exists.",
+    "changed": "Someone else just changed this appointment. The page now shows the latest details.",
+    "started": "This appointment has already started. Mark it completed or no-show instead.",
+    "not_started": "You can mark the outcome once the appointment has started.",
+    "phone_taken": "Another patient record already has this number."
+  },
+  "AppointmentAdmin": {
+    "title": "Appointment",
+    "loading": "Loading…",
+    "back": "Back to calendar",
+    "patient": "Patient",
+    "phone": "Phone",
+    "openRecord": "Patient record",
+    "when": "When",
+    "dentist": "Dentist",
+    "service": "Service",
+    "booked": "Booked",
+    "sourceOnline": "Online, by the patient",
+    "sourceStaff": "By the clinic",
+    "patientMoves": "Moved online by the patient: {count}",
+    "cancelledBy": "Cancelled by {who}",
+    "who": {
+      "patient": "the patient",
+      "staff": "the clinic"
+    },
+    "change": "Change time, dentist or service",
+    "cancel": "Cancel appointment",
+    "cancelConfirm": "Cancel this appointment? The time becomes free for other patients.",
+    "cancelling": "Cancelling…",
+    "outcomeTitle": "After the visit",
+    "completed": "Completed",
+    "noShow": "No-show",
+    "outcomeConfirm": "Record this outcome? It can't be changed afterwards.",
+    "remind": "Remind on WhatsApp",
+    "remindEn": "In English",
+    "remindAr": "بالعربية",
+    "call": "Call",
+    "reminderText": "Hello {name}, this is a reminder of your appointment at {clinic} on {date} at {time}. Reply here if you need to change it.",
+    "status": {
+      "booked": "Booked",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "no_show": "No-show"
+    }
+  },
+  "Patients": {
+    "title": "Patients",
+    "loading": "Loading…",
+    "search": "Search by name or phone",
+    "searchButton": "Search",
+    "empty": "No patients yet. They appear here after their first booking.",
+    "noMatch": "No patient matches “{query}”.",
+    "appointments": "{count, plural, one {# appointment} other {# appointments}}",
+    "lastVisit": "Latest: {date}",
+    "showingFirst": "Showing the {count} most recent. Search to find others.",
+    "back": "All patients",
+    "history": "Appointments",
+    "noHistory": "No appointments.",
+    "edit": "Edit details",
+    "name": "Full name",
+    "phone": "Mobile number",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Saved.",
+    "whatsapp": "WhatsApp",
+    "call": "Call",
+    "greeting": "Hello {name}, ",
+    "privacyNote": "Opening a patient record is logged, for patient privacy.",
+    "status": {
+      "booked": "Booked",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "no_show": "No-show"
+    }
   }
 }

@@ -1,12 +1,19 @@
-import { and, eq, gt, inArray, lt, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, lt, ne, sql } from "drizzle-orm";
 import { appointments, auditLog, clinics, patients, services, staff } from "../../../db/schema";
-import { db } from "../client";
+import { type Database, db } from "../client";
 import type { ClinicScope } from "./schedule";
 
 const BLOCKING = ["booked", "completed"] as const;
 
 /** Existing bookings that block time, per dentist, overlapping [fromMs, toMs). */
-export async function loadBusy(scope: ClinicScope, staffIds: string[], fromMs: number, toMs: number) {
+export async function loadBusy(
+  scope: ClinicScope,
+  staffIds: string[],
+  fromMs: number,
+  toMs: number,
+  /** An appointment being MOVED must not block its own new time. */
+  excludeAppointmentId?: string,
+) {
   const busy = new Map<string, { startMs: number; endMs: number }[]>();
   if (staffIds.length === 0) return busy;
   const rows = await scope.db
@@ -19,6 +26,7 @@ export async function loadBusy(scope: ClinicScope, staffIds: string[], fromMs: n
         inArray(appointments.status, [...BLOCKING]),
         lt(appointments.startAt, new Date(toMs)),
         gt(appointments.endAt, new Date(fromMs)),
+        excludeAppointmentId ? ne(appointments.id, excludeAppointmentId) : undefined,
       ),
     );
   for (const r of rows) {
@@ -28,7 +36,7 @@ export async function loadBusy(scope: ClinicScope, staffIds: string[], fromMs: n
 }
 
 /** Postgres 23P01 on the no-overlap exclusion constraint: someone got there first. */
-function isDoubleBooking(error: unknown) {
+export function isDoubleBooking(error: unknown) {
   const e = ((error as { cause?: unknown })?.cause ?? error) as { code?: string; constraint?: string };
   return e?.code === "23P01" && e?.constraint === "appointments_no_overlap";
 }
@@ -120,6 +128,7 @@ export async function findAppointmentByToken(tokenHash: string, nowMs: number = 
       startAt: appointments.startAt,
       endAt: appointments.endAt,
       icsSequence: appointments.icsSequence,
+      rescheduleCount: appointments.rescheduleCount,
       clinic: {
         slug: clinics.slug,
         nameEn: clinics.nameEn,
@@ -130,6 +139,9 @@ export async function findAppointmentByToken(tokenHash: string, nowMs: number = 
         mapsUrl: clinics.mapsUrl,
         timezone: clinics.timezone,
         status: clinics.status,
+        bookingEnabled: clinics.bookingEnabled,
+        changeCutoffMinutes: clinics.changeCutoffMinutes,
+        maxHorizonDays: clinics.maxHorizonDays,
       },
       service: { nameEn: services.nameEn, nameAr: services.nameAr, durationMinutes: services.durationMinutes },
       dentist: { nameEn: staff.displayNameEn, nameAr: staff.displayNameAr },
@@ -144,4 +156,170 @@ export async function findAppointmentByToken(tokenHash: string, nowMs: number = 
   if (row.endAt.getTime() + 24 * 3_600_000 < nowMs) return null;
   if (row.clinic.status === "suspended") return null;
   return row;
+}
+
+/* --------------------------- changes (Phase 6) --------------------------- */
+
+/**
+ * Everything a patient-side change needs, found ONLY by the link's hash. Same
+ * expiry and suspension rules as findAppointmentByToken. Returns the scope the
+ * service layer uses for availability, so no caller builds one from user input.
+ */
+export async function findAppointmentForChange(tokenHash: string, nowMs: number = Date.now()) {
+  const [row] = await db
+    .select({
+      id: appointments.id,
+      clinicId: appointments.clinicId,
+      staffId: appointments.staffId,
+      serviceId: appointments.serviceId,
+      startAt: appointments.startAt,
+      endAt: appointments.endAt,
+      status: appointments.status,
+      rescheduleCount: appointments.rescheduleCount,
+      icsSequence: appointments.icsSequence,
+      clinic: {
+        status: clinics.status,
+        timezone: clinics.timezone,
+        bookingEnabled: clinics.bookingEnabled,
+        changeCutoffMinutes: clinics.changeCutoffMinutes,
+        maxHorizonDays: clinics.maxHorizonDays,
+      },
+    })
+    .from(appointments)
+    .innerJoin(clinics, eq(clinics.id, appointments.clinicId))
+    .where(eq(appointments.accessTokenHash, tokenHash))
+    .limit(1);
+  if (!row) return null;
+  if (row.endAt.getTime() + 24 * 3_600_000 < nowMs) return null;
+  if (row.clinic.status === "suspended") return null;
+  const scope: ClinicScope = { db, clinicId: row.clinicId };
+  return { appointment: row, scope };
+}
+
+/** Who made a change. Staff changes carry the user id; patient changes can't. */
+export type ChangeActor = { type: "patient" } | { type: "staff"; userId: string };
+
+const actorColumns = (actor: ChangeActor) =>
+  actor.type === "patient"
+    ? { actorType: "patient" as const, actorUserId: null }
+    : { actorType: "member" as const, actorUserId: actor.userId };
+
+/** Lock one appointment of this clinic for the rest of the transaction. */
+async function lockAppointment(tx: Parameters<Parameters<Database["transaction"]>[0]>[0], clinicId: string, appointmentId: string) {
+  const [row] = await tx
+    .select({
+      status: appointments.status,
+      startAt: appointments.startAt,
+      staffId: appointments.staffId,
+      serviceId: appointments.serviceId,
+      icsSequence: appointments.icsSequence,
+    })
+    .from(appointments)
+    .where(and(eq(appointments.id, appointmentId), eq(appointments.clinicId, clinicId)))
+    .for("update")
+    .limit(1);
+  return row ?? null;
+}
+
+export type MoveResult = { ok: true } | { ok: false; reason: "changed" | "slot_taken" };
+
+/**
+ * Reschedule IN PLACE (D11): one row, one token, one history. The exclusion
+ * constraint checks UPDATE exactly like INSERT, so the new range is validated
+ * and the old one frees itself in the same statement.
+ *
+ * `expectedSequence` is the ics_sequence the caller's screen was built from.
+ * Every change bumps it, so a second tab, a double click or a staff edit in
+ * between makes this return "changed" instead of silently overwriting.
+ */
+export async function moveAppointment(
+  scope: ClinicScope,
+  input: {
+    appointmentId: string;
+    expectedSequence: number;
+    staffId: string;
+    serviceId: string;
+    startMs: number;
+    endMs: number;
+    actor: ChangeActor;
+  },
+): Promise<MoveResult> {
+  try {
+    return await scope.db.transaction(async (tx) => {
+      const current = await lockAppointment(tx, scope.clinicId, input.appointmentId);
+      if (!current || current.status !== "booked" || current.icsSequence !== input.expectedSequence) {
+        return { ok: false, reason: "changed" } as const;
+      }
+      await tx
+        .update(appointments)
+        .set({
+          staffId: input.staffId,
+          serviceId: input.serviceId,
+          startAt: new Date(input.startMs),
+          endAt: new Date(input.endMs),
+          icsSequence: sql`${appointments.icsSequence} + 1`,
+          // Only the patient's own moves count towards their limit (flows §7).
+          ...(input.actor.type === "patient" ? { rescheduleCount: sql`${appointments.rescheduleCount} + 1` } : {}),
+          updatedAt: sql`now()`,
+        })
+        .where(and(eq(appointments.id, input.appointmentId), eq(appointments.clinicId, scope.clinicId)));
+      await tx.insert(auditLog).values({
+        clinicId: scope.clinicId,
+        ...actorColumns(input.actor),
+        action: "appointment.rescheduled",
+        entityType: "appointment",
+        entityId: input.appointmentId,
+        metadata: {
+          from: { startAt: current.startAt.toISOString(), staffId: current.staffId, serviceId: current.serviceId },
+          to: { startAt: new Date(input.startMs).toISOString(), staffId: input.staffId, serviceId: input.serviceId },
+        },
+      });
+      return { ok: true } as const;
+    });
+  } catch (error) {
+    if (isDoubleBooking(error)) return { ok: false, reason: "slot_taken" };
+    throw error;
+  }
+}
+
+export type CancelResult = { ok: true } | { ok: false; reason: "changed" | "started" };
+
+/**
+ * booked -> cancelled, before the appointment starts. Past appointments are
+ * completed or no-show instead (flows §8). The partial exclusion constraint
+ * stops counting the row, so the slot is free again immediately.
+ */
+export async function cancelAppointment(
+  scope: ClinicScope,
+  input: { appointmentId: string; expectedSequence: number; actor: ChangeActor; nowMs: number },
+): Promise<CancelResult> {
+  return scope.db.transaction(async (tx) => {
+    const current = await lockAppointment(tx, scope.clinicId, input.appointmentId);
+    if (!current || current.status !== "booked" || current.icsSequence !== input.expectedSequence) {
+      return { ok: false, reason: "changed" } as const;
+    }
+    if (current.startAt.getTime() <= input.nowMs) return { ok: false, reason: "started" } as const;
+    await tx
+      .update(appointments)
+      .set({
+        status: "cancelled",
+        cancelledAt: new Date(input.nowMs),
+        cancelledBy: input.actor.type,
+        cancelledByUserId: input.actor.type === "staff" ? input.actor.userId : null,
+        statusUpdatedAt: new Date(input.nowMs),
+        // RFC 5545: a cancellation is a new revision of the event.
+        icsSequence: sql`${appointments.icsSequence} + 1`,
+        updatedAt: sql`now()`,
+      })
+      .where(and(eq(appointments.id, input.appointmentId), eq(appointments.clinicId, scope.clinicId)));
+    await tx.insert(auditLog).values({
+      clinicId: scope.clinicId,
+      ...actorColumns(input.actor),
+      action: "appointment.cancelled",
+      entityType: "appointment",
+      entityId: input.appointmentId,
+      metadata: { startAt: current.startAt.toISOString(), staffId: current.staffId, by: input.actor.type },
+    });
+    return { ok: true } as const;
+  });
 }

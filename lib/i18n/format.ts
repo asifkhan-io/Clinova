@@ -55,3 +55,18 @@ export function clinicDate(locale: string, isoDate: string) {
     year: "numeric",
   }).format(new Date(`${isoDate}T00:00:00Z`));
 }
+
+/** An instant as "9:30 AM" / "9:30 م" on the clinic's wall clock, Latin digits. */
+export function clinicTime(locale: string, timeZone: string, at: Date | number) {
+  return new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit", timeZone, numberingSystem: "latn" }).format(at);
+}
+
+/** An instant as "Sun, 3 Jan 2027" on the clinic's calendar, Gregorian, Latin digits. */
+export function clinicDay(locale: string, timeZone: string, at: Date | number) {
+  return new Intl.DateTimeFormat(locale, { calendar: "gregory", numberingSystem: "latn", timeZone, weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(at);
+}
+
+/** "09:30" on the clinic's wall clock: the value an <input type="time"> expects. */
+export function wallClock(timeZone: string, at: Date | number) {
+  return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone }).format(at);
+}

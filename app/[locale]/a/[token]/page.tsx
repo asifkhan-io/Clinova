@@ -3,8 +3,10 @@ import type { Locale } from "next-intl";
 import { getTranslations } from "next-intl/server";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { AppointmentChanges } from "@/components/appointment/appointment-changes";
+import { Link } from "@/lib/i18n/navigation";
 import { resolveLocale } from "@/lib/i18n/server";
-import { findAppointmentByToken } from "@/server/db/repositories/appointments";
+import { getPatientAppointment } from "@/server/services/appointment-changes";
 import { hashToken } from "@/server/services/tokens";
 
 // The URL itself is the key to this page: keep it out of search engines and
@@ -28,12 +30,13 @@ async function AppointmentBody({ params, locale }: { params: PageProps<"/[locale
   const { token } = await params;
   await connection();
   const t = await getTranslations({ locale, namespace: "Appointment" });
-  const appt = await findAppointmentByToken(hashToken(token));
-  if (!appt) {
+  const found = await getPatientAppointment(hashToken(token));
+  if (!found) {
     // Same message for unknown, expired and suspended: don't help anyone probe links.
     return <p className="rounded-lg border p-4">{t("invalid")}</p>;
   }
 
+  const { appt, changes } = found;
   const ar = locale === "ar";
   const pick = (en: string | null, arText: string | null) => (ar ? arText || en : en || arText);
   const tz = appt.clinic.timezone;
@@ -84,8 +87,28 @@ async function AppointmentBody({ params, locale }: { params: PageProps<"/[locale
         </div>
       )}
 
+      {(changes.canCancel || changes.reschedule !== "unavailable") && (
+        <AppointmentChanges
+          token={token}
+          seq={appt.icsSequence}
+          timeZone={tz}
+          horizonDays={appt.clinic.maxHorizonDays}
+          cutoffMinutes={appt.clinic.changeCutoffMinutes}
+          reschedule={changes.reschedule}
+          canCancel={changes.canCancel}
+        />
+      )}
+
+      {cancelled && (
+        <div className="flex flex-col gap-2 rounded-lg border p-4">
+          <p>{t("cancelledNotice")}</p>
+          <Link href={`/c/${appt.clinic.slug}`} className="self-start rounded-md bg-black px-4 py-2 font-medium text-white dark:bg-white dark:text-black">
+            {t("bookAgain")}
+          </Link>
+        </div>
+      )}
+
       <p className="text-sm opacity-70">{t("keepPrivate")}</p>
-      <p className="text-sm opacity-70">{t("changeHint")}</p>
     </>
   );
 }

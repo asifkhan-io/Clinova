@@ -5,7 +5,7 @@ import { useActionState } from "react";
 import { reissueInviteAction } from "@/server/actions/admin";
 import { InviteLink } from "./invite-link";
 
-export function ReissueInviteButton({ clinicId }: { clinicId: string }) {
+export function ReissueInviteButton({ clinicId, email }: { clinicId: string; email: string | null }) {
   const t = useTranslations("Admin");
   const locale = useLocale();
   const [state, action, pending] = useActionState(reissueInviteAction, null);
@@ -14,6 +14,10 @@ export function ReissueInviteButton({ clinicId }: { clinicId: string }) {
     <form action={action} className="flex flex-col gap-2">
       <input type="hidden" name="clinicId" value={clinicId} />
       <input type="hidden" name="locale" value={locale} />
+      <label className="flex flex-col gap-1">
+        <span className="text-xs opacity-70">{t("ownerEmail")}</span>
+        <input type="email" name="ownerEmail" defaultValue={email ?? ""} required dir="ltr" className="rounded-md border px-2 py-1 text-start text-sm" />
+      </label>
       <button
         type="submit"
         disabled={pending}

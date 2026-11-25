@@ -15,18 +15,19 @@ export function normalisePhone(raw: string): string | null {
   return /^\+[1-9]\d{7,14}$/.test(intl) ? intl : null;
 }
 
+/** A phone as typed by a patient or a receptionist; parses to E.164 or fails with "phone". */
+export const phoneField = z.string().transform((v, ctx) => {
+  const p = normalisePhone(v);
+  if (!p) ctx.addIssue({ code: "custom", message: "phone" });
+  return p ?? "";
+});
+
 export const bookingSchema = z.object({
   serviceId: z.uuid(),
   staffId: z.union([z.uuid(), z.literal("any")]),
   startMs: z.coerce.number().int().positive(),
   fullName: z.string().trim().min(2).max(100),
-  phone: z
-    .string()
-    .transform((v, ctx) => {
-      const p = normalisePhone(v);
-      if (!p) ctx.addIssue({ code: "custom", message: "phone" });
-      return p ?? "";
-    }),
+  phone: phoneField,
   // Optional: used once to email the patient their link (Phase 8). Not stored —
   // the patients table deliberately has no email column.
   email: z.union([z.email(), z.literal("")]).optional(),

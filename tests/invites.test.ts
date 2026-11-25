@@ -6,6 +6,8 @@ import { createTestDb } from "./helpers/db";
 
 const testDb = await createTestDb();
 vi.mock("@/server/db/client", () => ({ db: testDb.db }));
+// The admin actions run behind requirePlatformAdmin; these tests act as the admin.
+vi.mock("@/server/auth/guards", () => ({ requirePlatformAdmin: async () => adminCtx }));
 
 const { createClinicWithOwnerInvite, reissueOwnerInvite } =
   await import("@/server/db/repositories/admin-clinics");
@@ -104,5 +106,43 @@ describe("owner invites", () => {
   it("rejects a duplicate public address at the database", async () => {
     await newClinic("dupe-slug", "d1@test.local");
     await expect(newClinic("dupe-slug", "d2@test.local")).rejects.toThrow();
+  });
+});
+
+describe("creating a clinic for an email that already has an account", () => {
+  it("is detected up front, case-insensitively, so no unusable invite is made", async () => {
+    const { emailHasAccount } = await import("@/server/db/repositories/admin-clinics");
+    expect(await emailHasAccount(adminCtx, "ADMIN@test.local")).toBe(true);
+    expect(await emailHasAccount(adminCtx, "brand-new-owner@test.local")).toBe(false);
+  });
+});
+
+describe("an invite addressed to an email that already has an account", () => {
+  it("is flagged when the link is opened, so the page offers Sign in instead of a dead form", async () => {
+    // Made directly, the way invites existed before the up-front check.
+    const { token } = await newClinic("old-dead-invite", "admin@test.local");
+    expect(await findValidInvite(hashToken(token))).toMatchObject({ accountExists: true });
+    const { token: ok } = await newClinic("fresh-invite", "fresh-owner@test.local");
+    expect(await findValidInvite(hashToken(ok))).toMatchObject({ accountExists: false });
+  });
+
+  it("can be re-sent to a different email by the admin; an email with an account is refused", async () => {
+    const { reissueInviteAction } = await import("@/server/actions/admin");
+    const { clinic } = await newClinic("fix-me", "admin@test.local");
+    const form = (ownerEmail: string) => {
+      const f = new FormData();
+      f.set("clinicId", clinic.id);
+      f.set("locale", "en");
+      f.set("ownerEmail", ownerEmail);
+      return f;
+    };
+    expect(await reissueInviteAction(null, form("Admin@Test.local"))).toEqual({ ok: false, error: "email_has_account" });
+    expect(await reissueInviteAction(null, form("not-an-email"))).toEqual({ ok: false, error: "invalid_input" });
+
+    const result = await reissueInviteAction(null, form("Real.Owner@test.local"));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const token = result.data.inviteUrl.split("/invite/")[1]!;
+    expect(await findValidInvite(hashToken(token))).toMatchObject({ email: "real.owner@test.local", accountExists: false });
   });
 });
