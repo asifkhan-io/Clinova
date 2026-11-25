@@ -588,3 +588,25 @@ export const auditLog = pgTable(
     index("audit_log_entity_idx").on(t.entityType, t.entityId, t.createdAt.desc()),
   ],
 );
+
+/* ---------------------------------- rate limits ---------------------------------- */
+// Fixed-window counters (ARCH2). Deliberately NOT tenant-owned, so no
+// clinic_id: a limit protects the platform from one caller, and a caller is
+// not clinic data. `identifier_hash` is always a sha256 — never a raw IP or
+// phone number, so a database dump leaks neither (scope §8).
+
+export const rateLimits = pgTable(
+  "rate_limits",
+  {
+    bucket: text("bucket").notNull(),
+    identifierHash: text("identifier_hash").notNull(),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    count: integer("count").notNull().default(0),
+  },
+  (t) => [
+    primaryKey({ columns: [t.bucket, t.identifierHash, t.windowStart] }),
+    // Lets the sweep drop expired windows without scanning the table.
+    index("rate_limits_window_idx").on(t.windowStart),
+    check("rate_limits_count_positive", sql`${t.count} > 0`),
+  ],
+);

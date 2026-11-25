@@ -347,7 +347,8 @@
       "not_found": "This clinic page no longer exists.",
       "booking_closed": "This clinic just stopped taking online bookings. Please call to book.",
       "slot_unavailable": "That time is no longer available.",
-      "slot_taken": "Someone booked that time a moment ago."
+      "slot_taken": "Someone booked that time a moment ago.",
+      "rate_limited": "Too many attempts from your connection. Please wait a few minutes, or call the clinic to book."
     }
   },
   "Appointment": {
@@ -397,7 +398,8 @@
       "changed": "This appointment was just updated. The page now shows the latest details — please check and try again.",
       "not_allowed": "This change isn't possible any more. Please call the clinic.",
       "slot_unavailable": "That time is no longer free. Please pick another.",
-      "slot_taken": "Someone just booked that time. Please pick another."
+      "slot_taken": "Someone just booked that time. Please pick another.",
+      "rate_limited": "Too many changes to this appointment. Please wait a few minutes, or call the clinic."
     }
   },
   "BookingLink": {

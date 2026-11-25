@@ -1,8 +1,10 @@
 "use server";
 
+import { headers } from "next/headers";
 import { bookingSchema } from "@/lib/validation/booking";
 import { findPublicClinic } from "@/server/db/repositories/public-clinic";
 import { createPublicBooking } from "@/server/services/booking";
+import { callerAddress, consumeRateLimit } from "@/server/services/rate-limit";
 import type { ActionResult } from "./result";
 
 export type PublicBookingError =
@@ -12,15 +14,27 @@ export type PublicBookingError =
   | "not_found"
   | "booking_closed"
   | "slot_unavailable"
-  | "slot_taken";
+  | "slot_taken"
+  | "rate_limited";
 export type PublicBookingData = { token: string; startMs: number; staffId: string };
 type Result = ActionResult<PublicBookingData, PublicBookingError>;
 
 /**
  * Public, unauthenticated: the clinic comes from the slug, everything else is
- * validated and re-derived server-side. Rate limiting arrives in Phase 8 (ARCH2).
+ * validated and re-derived server-side.
+ *
+ * Two limits (ARCH2). The address limit runs first and is deliberately loose —
+ * Saudi mobile carriers share few public addresses between many subscribers, so
+ * a tight one would refuse real patients. The phone limit runs once the form is
+ * valid and is the one that actually stops a clinic's day being filled with
+ * junk: a booking needs a phone number, and a real patient has one.
  */
 export async function publicBookAction(_prev: Result | null, form: FormData): Promise<Result> {
+  const address = callerAddress(await headers());
+  if (address && !(await consumeRateLimit("public.book.ip", address))) {
+    return { ok: false, error: "rate_limited" };
+  }
+
   const found = await findPublicClinic(String(form.get("slug") ?? ""));
   if (!found) return { ok: false, error: "not_found" };
 
@@ -41,6 +55,10 @@ export async function publicBookAction(_prev: Result | null, form: FormData): Pr
   }
 
   const { phone, ...rest } = parsed.data;
+  if (!(await consumeRateLimit("public.book.phone", phone))) {
+    return { ok: false, error: "rate_limited" };
+  }
+
   const result = await createPublicBooking(found.scope, { ...rest, phoneE164: phone }, Date.now());
   if (!result.ok) return { ok: false, error: result.reason };
   return { ok: true, data: { token: result.token, startMs: result.startMs, staffId: result.staffId } };
