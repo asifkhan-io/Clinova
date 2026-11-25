@@ -193,3 +193,54 @@ export async function reissueAccessToken(
     return { ok: true } as const;
   });
 }
+
+export type UndoOutcomeResult = { ok: true } | { ok: false; reason: "changed" | "too_late" | "slot_taken" };
+
+/**
+ * completed | no_show -> booked, for a mis-tap (Phase 8c). The window closes at
+ * `allowedUntilMs`, which the service computes from the clinic's own day.
+ *
+ * The two directions are NOT symmetric, because the no-overlap constraint only
+ * counts 'booked' and 'completed' rows:
+ *  - completed -> booked keeps blocking the same range, so it cannot conflict.
+ *  - no_show -> booked re-asserts a range the no-show had freed. If anyone took
+ *    that time in the meantime the UPDATE raises 23P01 and this returns
+ *    slot_taken, which is the honest answer: the slot really is gone.
+ */
+export async function undoAppointmentOutcome(
+  ctx: ClinicContext,
+  input: { appointmentId: string; nowMs: number; allowedUntilMs: number },
+): Promise<UndoOutcomeResult> {
+  try {
+    return await ctx.db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({ status: appointments.status })
+        .from(appointments)
+        .where(and(eq(appointments.id, input.appointmentId), eq(appointments.clinicId, ctx.clinicId)))
+        .for("update")
+        .limit(1);
+      if (!current || (current.status !== "completed" && current.status !== "no_show")) {
+        return { ok: false, reason: "changed" } as const;
+      }
+      if (input.nowMs >= input.allowedUntilMs) return { ok: false, reason: "too_late" } as const;
+      await tx
+        .update(appointments)
+        .set({ status: "booked", statusUpdatedAt: new Date(input.nowMs), updatedAt: sql`now()` })
+        .where(and(eq(appointments.id, input.appointmentId), eq(appointments.clinicId, ctx.clinicId)));
+      await tx.insert(auditLog).values({
+        clinicId: ctx.clinicId,
+        actorType: "member",
+        actorUserId: ctx.userId,
+        action: "appointment.status_changed",
+        entityType: "appointment",
+        entityId: input.appointmentId,
+        // `undo` marks this apart from the original outcome in the same action name.
+        metadata: { from: current.status, to: "booked", undo: true },
+      });
+      return { ok: true } as const;
+    });
+  } catch (error) {
+    if (isDoubleBooking(error)) return { ok: false, reason: "slot_taken" };
+    throw error;
+  }
+}

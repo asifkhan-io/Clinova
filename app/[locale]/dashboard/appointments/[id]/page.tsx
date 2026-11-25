@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { z } from "zod";
-import { CancelAppointmentButton, OutcomeButtons, ReissueLinkButton } from "@/components/calendar/appointment-actions";
+import { CancelAppointmentButton, OutcomeButtons, ReissueLinkButton, UndoOutcomeButton } from "@/components/calendar/appointment-actions";
 import { AppointmentForm } from "@/components/calendar/appointment-form";
 import { StatusBadge } from "@/components/calendar/status-badge";
 import { bookingFormOptions } from "@/lib/dashboard/form-options";
@@ -16,7 +16,7 @@ import { whatsappLink } from "@/lib/whatsapp";
 import { requireClinicPage } from "@/server/auth/page-guards";
 import { getAppointment } from "@/server/db/repositories/clinic-appointments";
 import { getOwnClinic } from "@/server/db/repositories/clinics";
-import { staffActionsFor } from "@/server/services/staff-appointments";
+import { canUndoOutcome, staffActionsFor } from "@/server/services/staff-appointments";
 
 type Props = PageProps<"/[locale]/dashboard/appointments/[id]">;
 
@@ -48,6 +48,7 @@ async function AppointmentBody({ locale, params }: { locale: Locale; params: Pro
   const pick = (en: string, arText: string) => (ar ? arText || en : en || arText);
   const can = staffActionsFor(a);
   const day = localDate(a.startAt.getTime(), tz);
+  const canUndo = canUndoOutcome(a, ctx.role, tz);
 
   // The reminder is offered in both languages: we don't know the patient's.
   const reminder = async (lang: "en" | "ar") => {
@@ -120,6 +121,13 @@ async function AppointmentBody({ locale, params }: { locale: Locale; params: Pro
         <section className="flex flex-col gap-2 rounded-lg border p-4">
           <h2 className="font-semibold">{t("outcomeTitle")}</h2>
           <OutcomeButtons appointmentId={a.id} />
+        </section>
+      )}
+
+      {canUndo && (
+        <section className="flex flex-col gap-2 rounded-lg border p-4">
+          <h2 className="font-semibold">{t("outcomeTitle")}</h2>
+          <UndoOutcomeButton appointmentId={a.id} />
         </section>
       )}
 

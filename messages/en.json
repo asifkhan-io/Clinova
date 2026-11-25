@@ -474,7 +474,8 @@
     "changed": "Someone else just changed this appointment. The page now shows the latest details.",
     "started": "This appointment has already started. Mark it completed or no-show instead.",
     "not_started": "You can mark the outcome once the appointment has started.",
-    "phone_taken": "Another patient record already has this number."
+    "phone_taken": "Another patient record already has this number.",
+    "too_late": "That can only be corrected on the day of the appointment itself."
   },
   "AppointmentAdmin": {
     "title": "Appointment",
@@ -512,6 +513,9 @@
     "newLinkTitle": "New private link",
     "newLinkHint": "Shown once. Send it to the patient now — the previous link has already stopped working.",
     "newLinkConfirm": "Issue a new link? The link you sent before will stop working straight away.",
+    "undo": "Undo this outcome",
+    "undoing": "Undoing…",
+    "undoHint": "Recorded by mistake? You can put this back to booked until the end of the appointment's day.",
     "reminderText": "Hello {name}, this is a reminder of your appointment at {clinic} on {date} at {time}. Reply here if you need to change it.",
     "status": {
       "booked": "Booked",

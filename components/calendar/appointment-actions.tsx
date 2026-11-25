@@ -5,7 +5,7 @@ import { useActionState } from "react";
 import { BookingLink } from "@/components/ui/booking-link";
 import { useRouter } from "@/lib/i18n/navigation";
 import { whatsappLink } from "@/lib/whatsapp";
-import { type AppointmentActionError, cancelAppointmentAction, reissueLinkAction, setOutcomeAction } from "@/server/actions/appointments";
+import { type AppointmentActionError, cancelAppointmentAction, reissueLinkAction, setOutcomeAction, undoOutcomeAction } from "@/server/actions/appointments";
 
 type Result = Awaited<ReturnType<typeof cancelAppointmentAction>>;
 
@@ -118,6 +118,26 @@ export function ReissueLinkButton({
         className="self-start rounded-md border px-4 py-2 disabled:opacity-50"
       >
         {pending ? t("issuingLink") : t("newLink")}
+      </button>
+      <ErrorLine state={state} />
+    </form>
+  );
+}
+
+/**
+ * Undo a mis-tapped Completed or No-show (Phase 8c). The page renders this
+ * only for the owner, and only while the appointment is still on its own day;
+ * the action checks both again on the server.
+ */
+export function UndoOutcomeButton({ appointmentId }: { appointmentId: string }) {
+  const t = useTranslations("AppointmentAdmin");
+  const [state, action, pending] = useRefreshingAction(undoOutcomeAction);
+  return (
+    <form action={action} className="flex flex-col gap-2">
+      <input type="hidden" name="appointmentId" value={appointmentId} />
+      <p className="text-sm opacity-80">{t("undoHint")}</p>
+      <button type="submit" disabled={pending} className="self-start rounded-md border px-4 py-2 disabled:opacity-50">
+        {pending ? t("undoing") : t("undo")}
       </button>
       <ErrorLine state={state} />
     </form>
