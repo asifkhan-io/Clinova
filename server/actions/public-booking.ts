@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { bookingSchema } from "@/lib/validation/booking";
 import { findPublicClinic } from "@/server/db/repositories/public-clinic";
 import { createPublicBooking } from "@/server/services/booking";
+import { notifyPublicBooking } from "@/server/services/notifications";
 import { callerAddress, consumeRateLimit } from "@/server/services/rate-limit";
 import type { ActionResult } from "./result";
 
@@ -61,5 +62,14 @@ export async function publicBookAction(_prev: Result | null, form: FormData): Pr
 
   const result = await createPublicBooking(found.scope, { ...rest, phoneE164: phone }, Date.now());
   if (!result.ok) return { ok: false, error: result.reason };
+
+  // Sent after the response, never blocking or failing the booking (Phase 8d).
+  // The email address is used for this one message and stored nowhere.
+  notifyPublicBooking({
+    appointmentId: result.appointmentId,
+    token: result.token,
+    locale: form.get("locale") === "ar" ? "ar" : "en",
+    patientEmail: rest.email || undefined,
+  });
   return { ok: true, data: { token: result.token, startMs: result.startMs, staffId: result.staffId } };
 }

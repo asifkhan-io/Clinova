@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { cancelPatientAppointment, reschedulePatientAppointment, type PatientChangeFailure } from "@/server/services/appointment-changes";
+import { notifyPatientChange } from "@/server/services/notifications";
 import { consumeRateLimit } from "@/server/services/rate-limit";
 import { hashToken } from "@/server/services/tokens";
 import type { ActionResult } from "./result";
@@ -31,7 +32,9 @@ export async function patientRescheduleAction(_prev: Result | null, form: FormDa
   const tokenHash = hashToken(raw);
   if (!(await consumeRateLimit("token.change", tokenHash))) return { ok: false, error: "rate_limited" };
   const result = await reschedulePatientAppointment(tokenHash, input, Date.now());
-  return result.ok ? { ok: true, data: undefined } : { ok: false, error: result.reason };
+  if (!result.ok) return { ok: false, error: result.reason };
+  notifyPatientChange(tokenHash, "rescheduled");
+  return { ok: true, data: undefined };
 }
 
 export async function patientCancelAction(_prev: Result | null, form: FormData): Promise<Result> {
@@ -40,5 +43,7 @@ export async function patientCancelAction(_prev: Result | null, form: FormData):
   const tokenHash = hashToken(parsed.data.token);
   if (!(await consumeRateLimit("token.change", tokenHash))) return { ok: false, error: "rate_limited" };
   const result = await cancelPatientAppointment(tokenHash, { expectedSequence: parsed.data.expectedSequence }, Date.now());
-  return result.ok ? { ok: true, data: undefined } : { ok: false, error: result.reason };
+  if (!result.ok) return { ok: false, error: result.reason };
+  notifyPatientChange(tokenHash, "cancelled");
+  return { ok: true, data: undefined };
 }
