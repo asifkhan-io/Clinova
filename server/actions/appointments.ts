@@ -7,7 +7,9 @@ import { updatePatient } from "@/server/db/repositories/patients";
 import {
   clinicWallTimeToUtc,
   createStaffAppointment,
+  reissueAppointmentLink,
   staffCancelAppointment,
+  staffUndoOutcome,
   staffRescheduleAppointment,
   staffSetOutcome,
 } from "@/server/services/staff-appointments";
@@ -30,7 +32,8 @@ export type AppointmentActionError =
   | "changed"
   | "started"
   | "not_started"
-  | "phone_taken";
+  | "phone_taken"
+  | "too_late";
 
 async function member() {
   return requireClinicAccess("clinic_staff", { write: true });
@@ -114,4 +117,43 @@ export async function updatePatientAction(_prev: Result | null, form: FormData):
   const parsed = patientEditSchema.safeParse(Object.fromEntries(form));
   if (!parsed.success) return { ok: false, error: fieldError(parsed.error.issues) };
   return done(await updatePatient(ctx, parsed.data.patientId, { fullName: parsed.data.fullName, phoneE164: parsed.data.phone }));
+}
+
+/**
+ * A replacement private link for a booking whose link was lost (Phase 8b).
+ * Shown once, exactly like the original: the raw token is in this result and
+ * nowhere else, and issuing it stops the previous link working immediately.
+ */
+export async function reissueLinkAction(
+  _prev: ActionResult<{ token: string }, AppointmentActionError> | null,
+  form: FormData,
+): Promise<ActionResult<{ token: string }, AppointmentActionError>> {
+  let ctx;
+  try {
+    ctx = await member();
+  } catch (e) {
+    return authFailure(e);
+  }
+  const parsed = z.object({ appointmentId: z.uuid() }).safeParse(Object.fromEntries(form));
+  if (!parsed.success) return { ok: false, error: "invalid_input" };
+  const result = await reissueAppointmentLink(ctx, parsed.data.appointmentId);
+  return result.ok ? { ok: true, data: { token: result.token } } : { ok: false, error: result.reason };
+}
+
+/**
+ * Undo a mis-tapped Completed or No-show (Phase 8c). Owner only, and only on
+ * the appointment's own day: the outcome is the clinic's record of what
+ * happened, so correcting it is a different privilege from recording it, and
+ * one that expires.
+ */
+export async function undoOutcomeAction(_prev: Result | null, form: FormData): Promise<Result> {
+  let ctx;
+  try {
+    ctx = await requireClinicAccess("clinic_owner", { write: true });
+  } catch (e) {
+    return authFailure(e);
+  }
+  const parsed = z.object({ appointmentId: z.uuid() }).safeParse(Object.fromEntries(form));
+  if (!parsed.success) return { ok: false, error: "invalid_input" };
+  return done(await staffUndoOutcome(ctx, parsed.data.appointmentId, Date.now()));
 }

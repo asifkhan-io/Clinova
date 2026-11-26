@@ -1,8 +1,8 @@
 import "server-only";
 import { cancelAppointment, moveAppointment } from "../db/repositories/appointments";
-import { getAppointment, insertStaffBooking, listAppointments, setAppointmentOutcome } from "../db/repositories/clinic-appointments";
+import { getAppointment, insertStaffBooking, listAppointments, reissueAccessToken, setAppointmentOutcome, undoAppointmentOutcome } from "../db/repositories/clinic-appointments";
 import { getOwnClinic } from "../db/repositories/clinics";
-import type { ClinicContext } from "../db/repositories/context";
+import type { ClinicContext, ClinicRole } from "../db/repositories/context";
 import { loadServiceProviders } from "../db/repositories/schedule";
 import { STAFF_HORIZON_DAYS, getSlotsForDate } from "./availability";
 import { addDays, localDate, localToUtc } from "./availability/time";
@@ -122,4 +122,57 @@ export async function todaySummary(ctx: ClinicContext, timeZone: string, nowMs: 
   const active = list.filter((a) => a.status !== "cancelled");
   const next = active.find((a) => a.status === "booked" && a.endAt.getTime() > nowMs) ?? null;
   return { count: active.length, next };
+}
+
+export type ReissueLinkOutcome = { ok: true; token: string } | { ok: false; reason: "not_found" | "changed" };
+
+/**
+ * A fresh private link for an existing booking (Phase 8b). The staff booking
+ * flow shows the link exactly once, so without this a lost link means
+ * cancelling and rebooking. Issuing a new one immediately kills the old.
+ */
+export async function reissueAppointmentLink(ctx: ClinicContext, appointmentId: string): Promise<ReissueLinkOutcome> {
+  // As at booking: this is the only moment the raw token exists.
+  const { token, hash } = newToken();
+  const result = await reissueAccessToken(ctx, { appointmentId, accessTokenHash: hash });
+  return result.ok ? { ok: true, token } : result;
+}
+
+export type UndoOutcomeOutcome = { ok: true } | { ok: false; reason: "not_found" | "changed" | "too_late" | "slot_taken" };
+
+/**
+ * Put a mis-tapped Completed or No-show back to booked (Phase 8c).
+ *
+ * Completed and No-show are otherwise final, which is right: they are the
+ * clinic's record of what happened. But a receptionist taps No-show and the
+ * patient walks in eight minutes later, and without this the only fix is a
+ * database edit. The window is the appointment's own day in the clinic's
+ * timezone — long enough to correct a mistake, short enough that nobody
+ * rewrites last month's history. The action layer restricts it to the owner.
+ */
+export async function staffUndoOutcome(ctx: ClinicContext, appointmentId: string, nowMs: number): Promise<UndoOutcomeOutcome> {
+  const [appointment, clinic] = await Promise.all([getAppointment(ctx, appointmentId), getOwnClinic(ctx)]);
+  if (!appointment || !clinic) return { ok: false, reason: "not_found" };
+  const day = localDate(appointment.startAt.getTime(), clinic.timezone);
+  const allowedUntilMs = localToUtc(addDays(day, 1), 0, clinic.timezone);
+  // A zone with no such midnight is not a reason to widen the window.
+  if (allowedUntilMs === null) return { ok: false, reason: "too_late" };
+  return undoAppointmentOutcome(ctx, { appointmentId, nowMs, allowedUntilMs });
+}
+
+/**
+ * Whether the screen should offer to undo this outcome (Phase 8c). Lives here
+ * rather than in the page for the same reason staffActionsFor does: the clock
+ * is read outside render, and staffUndoOutcome enforces the same rule again
+ * under a row lock, so a stale screen cannot talk the server into it.
+ */
+export function canUndoOutcome(
+  appointment: { status: string; startAt: Date },
+  role: ClinicRole,
+  timeZone: string,
+  nowMs: number = Date.now(),
+): boolean {
+  if (appointment.status !== "completed" && appointment.status !== "no_show") return false;
+  if (role !== "clinic_owner") return false;
+  return localDate(nowMs, timeZone) === localDate(appointment.startAt.getTime(), timeZone);
 }

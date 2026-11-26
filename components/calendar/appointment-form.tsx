@@ -64,14 +64,19 @@ export function AppointmentForm({
   useEffect(() => {
     if (!serviceId || !staffId || !date || key === loadedKey) return;
     const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(new DOMException("timeout", "TimeoutError")), 12_000);
     const q = new URLSearchParams({ serviceId, staffId, date, ...(edit ? { exclude: edit.appointmentId } : {}) });
     fetch(`/api/clinic/slots?${q}`, { signal: controller.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((body: { slots: number[] }) => { setSuggestions({ state: "ready", starts: body.slots }); setLoadedKey(key); })
       .catch((e: unknown) => {
         if (!(e instanceof DOMException && e.name === "AbortError")) setSuggestions({ state: "error" });
-      });
-    return () => controller.abort();
+      })
+      .finally(() => clearTimeout(timer));
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [key, loadedKey, serviceId, staffId, date, edit]);
   const fresh = key === loadedKey;
 

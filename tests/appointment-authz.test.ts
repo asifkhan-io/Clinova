@@ -97,6 +97,38 @@ describe("Server Actions", () => {
   });
 });
 
+describe("Phase 8 actions", () => {
+  // A well-formed v4 uuid that is nobody's appointment: enough to see which
+  // answer the guard gives before any lookup happens.
+  const nobodys = "123e4567-e89b-42d3-a456-426614174000";
+
+  it("let any member re-send a lost link, which is reception's job", async () => {
+    const [mine] = await db.select().from(appointments).where(eq(appointments.clinicId, ids.clinicA));
+    currentUserId = ids.staffA;
+    const reissued = await actions.reissueLinkAction(null, form({ appointmentId: mine!.id }));
+    expect(reissued.ok).toBe(true);
+    // Still scoped: another clinic's owner cannot touch clinic A's appointment.
+    currentUserId = ids.ownerB;
+    expect(await actions.reissueLinkAction(null, form({ appointmentId: mine!.id }))).toEqual({ ok: false, error: "not_found" });
+  });
+
+  it("let only an owner undo an outcome — recording one is not correcting one", async () => {
+    expect(await actions.undoOutcomeAction(null, form({ appointmentId: nobodys }))).toEqual({ ok: false, error: "unauthenticated" });
+    // A clinic_staff member may record an outcome but not reverse it.
+    currentUserId = ids.staffA;
+    expect(await actions.undoOutcomeAction(null, form({ appointmentId: nobodys }))).toEqual({ ok: false, error: "forbidden" });
+    // An owner gets past the guard, and is then scoped to their own clinic.
+    currentUserId = ids.ownerB;
+    expect(await actions.undoOutcomeAction(null, form({ appointmentId: nobodys }))).toEqual({ ok: false, error: "not_found" });
+  });
+
+  it("reject a junk appointment id before reaching the database", async () => {
+    currentUserId = ids.ownerB;
+    expect(await actions.undoOutcomeAction(null, form({ appointmentId: "'; drop table appointments; --" }))).toEqual({ ok: false, error: "invalid_input" });
+    expect(await actions.reissueLinkAction(null, form({ appointmentId: "not-a-uuid" }))).toEqual({ ok: false, error: "invalid_input" });
+  });
+});
+
 describe("GET /api/clinic/slots", () => {
   const call = () => slots(new Request(`http://x/api/clinic/slots?serviceId=${ids.service}&staffId=${ids.dentist}&date=${date}`));
 

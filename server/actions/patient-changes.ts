@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { cancelPatientAppointment, reschedulePatientAppointment, type PatientChangeFailure } from "@/server/services/appointment-changes";
+import { consumeRateLimit } from "@/server/services/rate-limit";
 import { hashToken } from "@/server/services/tokens";
 import type { ActionResult } from "./result";
 
@@ -9,13 +10,17 @@ import type { ActionResult } from "./result";
 const token = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
 const sequence = z.coerce.number().int().min(0);
 
-export type PatientChangeError = "invalid_input" | PatientChangeFailure;
+export type PatientChangeError = "invalid_input" | "rate_limited" | PatientChangeFailure;
 type Result = ActionResult<undefined, PatientChangeError>;
 
 /**
  * Public, unauthenticated: the link's token IS the authorization. It is only
- * ever hashed and looked up, never trusted for anything else. Rate limiting per
- * token arrives in Phase 8 (ARCH2).
+ * ever hashed and looked up, never trusted for anything else.
+ *
+ * Limited per link rather than per address (ARCH2): the token is the only
+ * identity here, and an address limit would punish a household or a waiting
+ * room on one connection. Reschedule and cancel share one counter, so a script
+ * holding a stolen link cannot churn an appointment all day.
  */
 export async function patientRescheduleAction(_prev: Result | null, form: FormData): Promise<Result> {
   const parsed = z
@@ -23,13 +28,17 @@ export async function patientRescheduleAction(_prev: Result | null, form: FormDa
     .safeParse({ token: form.get("token"), expectedSequence: form.get("seq"), startMs: form.get("startMs") });
   if (!parsed.success) return { ok: false, error: "invalid_input" };
   const { token: raw, ...input } = parsed.data;
-  const result = await reschedulePatientAppointment(hashToken(raw), input, Date.now());
+  const tokenHash = hashToken(raw);
+  if (!(await consumeRateLimit("token.change", tokenHash))) return { ok: false, error: "rate_limited" };
+  const result = await reschedulePatientAppointment(tokenHash, input, Date.now());
   return result.ok ? { ok: true, data: undefined } : { ok: false, error: result.reason };
 }
 
 export async function patientCancelAction(_prev: Result | null, form: FormData): Promise<Result> {
   const parsed = z.object({ token, expectedSequence: sequence }).safeParse({ token: form.get("token"), expectedSequence: form.get("seq") });
   if (!parsed.success) return { ok: false, error: "invalid_input" };
-  const result = await cancelPatientAppointment(hashToken(parsed.data.token), { expectedSequence: parsed.data.expectedSequence }, Date.now());
+  const tokenHash = hashToken(parsed.data.token);
+  if (!(await consumeRateLimit("token.change", tokenHash))) return { ok: false, error: "rate_limited" };
+  const result = await cancelPatientAppointment(tokenHash, { expectedSequence: parsed.data.expectedSequence }, Date.now());
   return result.ok ? { ok: true, data: undefined } : { ok: false, error: result.reason };
 }

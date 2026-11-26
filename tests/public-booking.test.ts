@@ -6,6 +6,12 @@ const { db } = await createTestDb();
 vi.mock("@/server/db/client", () => ({ db }));
 // connection() needs a live Next request; in a unit test there is none.
 vi.mock("next/server", async (original) => ({ ...(await original<typeof import("next/server")>()), connection: async () => {} }));
+// The address the limiter sees. Null by default: a unit test has no proxy
+// header, and an unknown caller is deliberately not limited.
+let forwardedFor: string | null = null;
+vi.mock("next/headers", () => ({
+  headers: async () => new Headers(forwardedFor ? { "x-forwarded-for": forwardedFor } : {}),
+}));
 
 const services = await import("@/server/db/repositories/services");
 const staffRepo = await import("@/server/db/repositories/staff");
@@ -14,6 +20,7 @@ const clinicsRepo = await import("@/server/db/repositories/clinics");
 const { findPublicClinic, loadPublicCatalogue } = await import("@/server/db/repositories/public-clinic");
 const { GET } = await import("@/app/api/public/c/[slug]/availability/route");
 const { publicBookAction } = await import("@/server/actions/public-booking");
+const { LIMITS } = await import("@/server/services/rate-limit");
 const { addDays, localDate, localToUtc } = await import("@/lib/time/zoned");
 
 type Ctx = Parameters<typeof services.listServices>[0];
@@ -95,5 +102,53 @@ describe("publicBookAction", () => {
     expect(await publicBookAction(null, form({ phone: "123" }))).toEqual({ ok: false, error: "phone" });
     expect(await publicBookAction(null, form({ slug: "gone" }))).toEqual({ ok: false, error: "not_found" });
     expect(await publicBookAction(null, form())).toEqual({ ok: false, error: "slot_unavailable" }); // already taken
+  });
+});
+
+describe("rate limiting the booking path", () => {
+  const bookWith = (phone: string) => {
+    const f = new FormData();
+    const base = {
+      slug: "smile",
+      serviceId: cleaning,
+      staffId: "any",
+      startMs: String(localToUtc(date, 540, "Asia/Riyadh")),
+      fullName: "Noura Ali",
+      phone,
+      consent: "on",
+    };
+    for (const [k, v] of Object.entries(base)) f.set(k, v);
+    return f;
+  };
+
+  it("refuses a flood from one address, and says so rather than failing silently", async () => {
+    forwardedFor = "198.51.100.7";
+    try {
+      const results = [];
+      for (let i = 0; i <= LIMITS["public.book.ip"].max; i++) {
+        results.push(await publicBookAction(null, bookWith("05 9000 0001")));
+      }
+      expect(results.at(-1)).toEqual({ ok: false, error: "rate_limited" });
+      // Everything under the limit got a real answer, not a refusal.
+      expect(results.slice(0, -1).some((r) => !r.ok && r.error === "rate_limited")).toBe(false);
+    } finally {
+      forwardedFor = null;
+    }
+  });
+
+  it("refuses a flood for one phone number even when the address is unknown", async () => {
+    const results = [];
+    for (let i = 0; i <= LIMITS["public.book.phone"].max; i++) {
+      results.push(await publicBookAction(null, bookWith("05 9000 0002")));
+    }
+    expect(results.at(-1)).toEqual({ ok: false, error: "rate_limited" });
+    expect(results.slice(0, -1).some((r) => !r.ok && r.error === "rate_limited")).toBe(false);
+  });
+
+  it("does not limit a caller it cannot identify", async () => {
+    // forwardedFor is null here, so the address bucket is skipped entirely;
+    // a missing proxy header must never lock every patient out at once.
+    const r = await publicBookAction(null, bookWith("05 9000 0003"));
+    expect(r).not.toEqual({ ok: false, error: "rate_limited" });
   });
 });

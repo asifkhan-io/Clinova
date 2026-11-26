@@ -3,6 +3,7 @@ import { z } from "zod";
 import { findPublicClinic } from "@/server/db/repositories/public-clinic";
 import { getSlotsForDate } from "@/server/services/availability";
 import { loadBusyForDate } from "@/server/services/booking";
+import { callerAddress, consumeRateLimit } from "@/server/services/rate-limit";
 
 const query = z.object({
   serviceId: z.uuid(),
@@ -15,11 +16,20 @@ const query = z.object({
  *
  * Request-time, never cached (ARCH8): a stale slot grid is a double-booking
  * funnel. Returns start instants only; for "any" the dentist is not revealed
- * (the booking step picks one, D9). Rate limiting lands in Phase 8 (ARCH2).
+ * (the booking step picks one, D9).
+ *
+ * Rate limited per address BEFORE validation (ARCH2), so a flood of malformed
+ * requests is refused as cheaply as a flood of valid ones.
  */
 export async function GET(request: Request, ctx: RouteContext<"/api/public/c/[slug]/availability">) {
   await connection();
   const { slug } = await ctx.params;
+
+  const address = callerAddress(request.headers);
+  if (address && !(await consumeRateLimit("public.availability", address))) {
+    return Response.json({ error: "rate_limited" }, { status: 429, headers: { "Cache-Control": "no-store" } });
+  }
+
   const parsed = query.safeParse(Object.fromEntries(new URL(request.url).searchParams));
   if (!parsed.success) return Response.json({ error: "invalid_input" }, { status: 400 });
 

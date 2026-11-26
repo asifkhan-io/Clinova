@@ -78,13 +78,18 @@ export function AppointmentChanges({
   useEffect(() => {
     if (panel !== "reschedule" || !date || slots.state !== "loading") return;
     const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(new DOMException("timeout", "TimeoutError")), 12_000);
     fetch(`/api/public/a/${token}/availability?date=${date}`, { signal: controller.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((body: { slots: number[] }) => setSlots({ state: "ready", starts: body.slots }))
       .catch((e: unknown) => {
         if (!(e instanceof DOMException && e.name === "AbortError")) setSlots({ state: "error" });
-      });
-    return () => controller.abort();
+      })
+      .finally(() => clearTimeout(timer));
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [panel, date, token, seq, slots.state]);
 
   const duration = cutoffMinutes % 60 === 0 ? t("hours", { count: cutoffMinutes / 60 }) : t("minutes", { count: cutoffMinutes });

@@ -146,3 +146,101 @@ export async function setAppointmentOutcome(
     return { ok: true } as const;
   });
 }
+
+export type ReissueLinkResult = { ok: true } | { ok: false; reason: "not_found" | "changed" };
+
+/**
+ * Point the appointment at a new private link and retire the old one, because
+ * the link is shown once and staff lose it (Phase 8b).
+ *
+ * ics_sequence is deliberately NOT bumped. The event itself has not changed —
+ * same time, same dentist, same service — so a calendar entry the patient
+ * already saved is still correct, and a staff screen open elsewhere keeps its
+ * optimistic-concurrency token instead of being invalidated by someone
+ * re-sending a message.
+ *
+ * Only a booked appointment gets a new link: once it is cancelled or closed out
+ * there is nothing for the patient to manage, and the old link expires on its
+ * own 24h after the end.
+ */
+export async function reissueAccessToken(
+  ctx: ClinicContext,
+  input: { appointmentId: string; accessTokenHash: string },
+): Promise<ReissueLinkResult> {
+  return ctx.db.transaction(async (tx) => {
+    const [current] = await tx
+      .select({ status: appointments.status })
+      .from(appointments)
+      .where(and(eq(appointments.id, input.appointmentId), eq(appointments.clinicId, ctx.clinicId)))
+      .for("update")
+      .limit(1);
+    if (!current) return { ok: false, reason: "not_found" } as const;
+    if (current.status !== "booked") return { ok: false, reason: "changed" } as const;
+    await tx
+      .update(appointments)
+      .set({ accessTokenHash: input.accessTokenHash, updatedAt: sql`now()` })
+      .where(and(eq(appointments.id, input.appointmentId), eq(appointments.clinicId, ctx.clinicId)));
+    // No token, not even its hash: an audit row says a link was replaced and
+    // by whom, which is all an investigation needs.
+    await tx.insert(auditLog).values({
+      clinicId: ctx.clinicId,
+      actorType: "member",
+      actorUserId: ctx.userId,
+      action: "appointment.link_reissued",
+      entityType: "appointment",
+      entityId: input.appointmentId,
+    });
+    return { ok: true } as const;
+  });
+}
+
+export type UndoOutcomeResult = { ok: true } | { ok: false; reason: "changed" | "too_late" | "slot_taken" };
+
+/**
+ * completed | no_show -> booked, for a mis-tap (Phase 8c). The window closes at
+ * `allowedUntilMs`, which the service computes from the clinic's own day.
+ *
+ * The two directions are NOT symmetric, because the no-overlap constraint only
+ * counts 'booked' and 'completed' rows:
+ *  - completed -> booked keeps blocking the same range, so it cannot conflict.
+ *  - no_show -> booked re-asserts a range the no-show had freed. If anyone took
+ *    that time in the meantime the UPDATE raises 23P01 and this returns
+ *    slot_taken, which is the honest answer: the slot really is gone.
+ */
+export async function undoAppointmentOutcome(
+  ctx: ClinicContext,
+  input: { appointmentId: string; nowMs: number; allowedUntilMs: number },
+): Promise<UndoOutcomeResult> {
+  try {
+    return await ctx.db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({ status: appointments.status })
+        .from(appointments)
+        .where(and(eq(appointments.id, input.appointmentId), eq(appointments.clinicId, ctx.clinicId)))
+        .for("update")
+        .limit(1);
+      if (!current || (current.status !== "completed" && current.status !== "no_show")) {
+        return { ok: false, reason: "changed" } as const;
+      }
+      if (input.nowMs >= input.allowedUntilMs) return { ok: false, reason: "too_late" } as const;
+      await tx
+        .update(appointments)
+        .set({ status: "booked", statusUpdatedAt: new Date(input.nowMs), updatedAt: sql`now()` })
+        .where(and(eq(appointments.id, input.appointmentId), eq(appointments.clinicId, ctx.clinicId)));
+      await tx.insert(auditLog).values({
+        clinicId: ctx.clinicId,
+        actorType: "member",
+        actorUserId: ctx.userId,
+        action: "appointment.status_changed",
+        entityType: "appointment",
+        entityId: input.appointmentId,
+        // `undo` marks this apart from the original outcome in the same action name.
+        metadata: { from: current.status, to: "booked", undo: true },
+      });
+      return { ok: true } as const;
+    });
+  } catch (error) {
+    if (isDoubleBooking(error)) return { ok: false, reason: "slot_taken" };
+    throw error;
+  }
+}
