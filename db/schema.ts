@@ -610,3 +610,23 @@ export const rateLimits = pgTable(
     check("rate_limits_count_positive", sql`${t.count} > 0`),
   ],
 );
+
+/* ------------------------------- notification runs ------------------------------- */
+// At-most-once guard for scheduled emails (Phase 8d). The morning digest claims
+// (clinic, 'morning_digest', local date) BEFORE sending: a retried or duplicated
+// cron run finds the row and sends nothing. The trade is deliberate — missing
+// one digest is better than a clinic getting the same email twice and learning
+// to ignore it.
+
+export const notificationRuns = pgTable(
+  "notification_runs",
+  {
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    runKey: text("run_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.clinicId, t.kind, t.runKey] })],
+);

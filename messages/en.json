@@ -342,7 +342,7 @@
     "confirmed": "You're booked!",
     "errors": {
       "invalid_input": "Please check your details.",
-      "phone": "Enter a mobile number like 05X XXX XXXX or +966…",
+      "phone": "Enter a mobile number like 05X XXX XXXX, or a full international number starting with +",
       "consent": "Please tick the box to agree, so the clinic can keep your booking.",
       "not_found": "This clinic page no longer exists.",
       "booking_closed": "This clinic just stopped taking online bookings. Please call to book.",
@@ -446,7 +446,7 @@
     "outsideSuggestions": "This time isn't in the suggestions (outside working hours, or next to another booking). It will still be booked if the dentist is free.",
     "patientName": "Patient name",
     "phone": "Mobile number",
-    "phoneHint": "Saudi numbers can be typed as 05…",
+    "phoneHint": "Saudi numbers can be typed as 05…; other countries need the full number with + and the country code",
     "create": "Book appointment",
     "creating": "Booking…",
     "save": "Save changes",
@@ -466,7 +466,7 @@
     "forbidden": "Your account can't do this.",
     "clinic_suspended": "This clinic's account is suspended, so changes are paused. Contact Clinova.",
     "invalid_input": "Something in the form isn't right. Check it and try again.",
-    "phone": "Enter a valid mobile number, e.g. 05XXXXXXXX or +966…",
+    "phone": "Enter a valid mobile number: 05XXXXXXXX, or the full international number starting with +",
     "invalid_time": "Pick a time from today onwards (and within a year).",
     "not_bookable": "This dentist doesn't perform this service. Link them under Dentists, or pick another.",
     "slot_taken": "The dentist already has an appointment that overlaps this time.",
@@ -553,5 +553,25 @@
       "cancelled": "Cancelled",
       "no_show": "No-show"
     }
+  },
+  "Email": {
+    "patientSubject": "Your appointment at {clinic} is booked",
+    "patientHeading": "Your appointment is booked",
+    "when": "When",
+    "dentist": "Dentist",
+    "service": "Service",
+    "manage": "View, change or cancel",
+    "addToCalendar": "Add to calendar",
+    "payAtClinic": "Payment is made at the clinic.",
+    "keepPrivate": "Keep this link private: anyone with it can see and change this appointment.",
+    "alertSubject": "{event, select, booked {New online booking} rescheduled {Appointment moved by the patient} other {Appointment cancelled by the patient}} — {when}",
+    "alertHeading": "{event, select, booked {A patient booked online} rescheduled {A patient moved their appointment} other {A patient cancelled their appointment}}",
+    "alertPrivacy": "Patient details are in your dashboard, not in this email.",
+    "openAppointment": "Open the appointment",
+    "digestSubject": "Today at {clinic}: {count, plural, =0 {no appointments} one {1 appointment} other {{countText} appointments}}",
+    "digestHeading": "Today's appointments",
+    "digestEmpty": "No appointments are booked for today.",
+    "openCalendar": "Open today's calendar",
+    "footer": "Sent by Clinova."
   }
 }

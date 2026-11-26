@@ -5,7 +5,14 @@ import { createTestDb } from "./helpers/db";
 const { db } = await createTestDb();
 vi.mock("@/server/db/client", () => ({ db }));
 // connection() needs a live Next request; in a unit test there is none.
-vi.mock("next/server", async (original) => ({ ...(await original<typeof import("next/server")>()), connection: async () => {} }));
+// after() only exists inside a real request; here the notification work just runs.
+vi.mock("next/server", async (original) => ({
+  ...(await original<typeof import("next/server")>()),
+  connection: async () => {},
+  after: (task: () => unknown) => {
+    void task();
+  },
+}));
 // The address the limiter sees. Null by default: a unit test has no proxy
 // header, and an unknown caller is deliberately not limited.
 let forwardedFor: string | null = null;

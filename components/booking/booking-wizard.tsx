@@ -275,6 +275,8 @@ export function BookingWizard({
             {t("step4")}
           </h2>
           <input type='hidden' name='slug' value={clinic.slug} />
+          {/* Which language the confirmation email is written in. */}
+          <input type='hidden' name='locale' value={locale} />
           <input type='hidden' name='serviceId' value={service.id} />
           <input type='hidden' name='staffId' value={staffId} />
           <input type='hidden' name='startMs' value={startMs} />
