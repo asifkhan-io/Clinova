@@ -1,6 +1,8 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { clinics } from "@/db/schema";
-import { bookingRulesSchema, clinicProfileSchema } from "@/lib/validation/clinic-settings";
+import { bookingRulesSchema, clinicProfileSchemaFor } from "@/lib/validation/clinic-settings";
+
+const clinicProfileSchema = clinicProfileSchemaFor("SA");
 import { createTestDb } from "./helpers/db";
 
 const { db } = await createTestDb();
@@ -69,9 +71,12 @@ describe("setup checklist (derived, never stored)", () => {
 describe("settings validation", () => {
   const profile = { nameEn: "A", nameAr: "أ", addressEn: "", addressAr: "", phone: "", mapsUrl: "", timezone: "Asia/Riyadh" };
 
-  it("normalises phone spacing and rejects local formats", () => {
-    expect(clinicProfileSchema.parse({ ...profile, nameEn: "Ab", nameAr: "أب", phone: "+966 51-234 5678" }).phone).toBe("+966512345678");
-    expect(clinicProfileSchema.safeParse({ ...profile, nameEn: "Ab", nameAr: "أب", phone: "0512345678" }).success).toBe(false);
+  it("normalises phone spacing and reads local numbers in the clinic's country", () => {
+    const base = { ...profile, nameEn: "Ab", nameAr: "أب" };
+    expect(clinicProfileSchema.parse({ ...base, phone: "+966 51-234 5678" }).phone).toBe("+966512345678");
+    expect(clinicProfileSchema.parse({ ...base, phone: "0512345678" }).phone).toBe("+966512345678");
+    expect(clinicProfileSchema.parse({ ...base, phone: "011 234 5678" }).phone).toBe("+966112345678"); // Riyadh landline
+    expect(clinicProfileSchema.safeParse({ ...base, phone: "12345" }).success).toBe(false);
   });
 
   it("accepts only https map links and known GCC time zones", () => {

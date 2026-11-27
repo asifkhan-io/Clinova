@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useActionState, useState } from "react";
+import { COUNTRIES, countryOf } from "@/lib/countries";
 import { useRouter } from "@/lib/i18n/navigation";
 import { CLINIC_TIMEZONES, SLOT_STEPS } from "@/lib/validation/clinic-settings";
 import { saveBookingRulesAction, saveProfileAction, setBookingEnabledAction } from "@/server/actions/settings";
@@ -46,7 +47,7 @@ export function BookingSwitch({ enabled, ready }: { enabled: boolean; ready: boo
 
 type Profile = {
   nameEn: string; nameAr: string | null; addressEn: string | null; addressAr: string | null;
-  phone: string | null; mapsUrl: string | null; timezone: string;
+  phone: string | null; mapsUrl: string | null; timezone: string; country: string;
 };
 
 export function ProfileForm({ clinic }: { clinic: Profile }) {
@@ -63,7 +64,7 @@ export function ProfileForm({ clinic }: { clinic: Profile }) {
       <label className="flex flex-col gap-1"><span className="text-sm font-medium">{t("addressAr")}</span>
         <textarea name="addressAr" rows={2} dir="rtl" defaultValue={clinic.addressAr ?? ""} className={field} /></label>
       <label className="flex flex-col gap-1"><span className="text-sm font-medium">{t("phone")}</span>
-        <input name="phone" type="tel" dir="ltr" placeholder="+966 5x xxx xxxx" defaultValue={clinic.phone ?? ""} className={field} /></label>
+        <input name="phone" type="tel" dir="ltr" placeholder={COUNTRIES[countryOf(clinic.country)].localExample} defaultValue={clinic.phone ?? ""} className={field} /></label>
       <label className="flex flex-col gap-1"><span className="text-sm font-medium">{t("mapsUrl")}</span>
         <input name="mapsUrl" type="url" dir="ltr" placeholder="https://maps.app.goo.gl/…" defaultValue={clinic.mapsUrl ?? ""} className={field} /></label>
       <label className="flex flex-col gap-1 sm:col-span-2"><span className="text-sm font-medium">{t("timezone")}</span>

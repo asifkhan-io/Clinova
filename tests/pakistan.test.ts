@@ -11,7 +11,7 @@ import { clinicMoney } from "@/lib/i18n/format";
 import { staffBookingSchemaFor } from "@/lib/validation/appointment";
 import { bookingSchemaFor, normalisePhone } from "@/lib/validation/booking";
 import { createClinicSchema } from "@/lib/validation/clinic";
-import { clinicProfileSchema } from "@/lib/validation/clinic-settings";
+import { clinicProfileSchemaFor } from "@/lib/validation/clinic-settings";
 import { serviceSchema } from "@/lib/validation/service";
 import { staffSchema } from "@/lib/validation/staff";
 import { addDays, localDate, localToUtc } from "@/lib/time/zoned";
@@ -102,7 +102,15 @@ describe("Arabic names are optional", () => {
     expect(serviceSchema.parse({ ...svc, nameAr: "تنظيف" }).nameAr).toBe("تنظيف");
     expect(staffSchema.parse({ displayNameEn: "Dr Ayesha", displayNameAr: "  ", titleEn: "", titleAr: "" }).displayNameAr).toBeNull();
     const profile = { nameEn: "Smile Dental", nameAr: "", addressEn: "", addressAr: "", phone: "", mapsUrl: "", timezone: "Asia/Karachi" };
-    expect(clinicProfileSchema.parse(profile)).toMatchObject({ nameAr: null, timezone: "Asia/Karachi" });
+    expect(clinicProfileSchemaFor("PK").parse(profile)).toMatchObject({ nameAr: null, timezone: "Asia/Karachi" });
+  });
+
+  it("the clinic's own phone accepts an Islamabad landline or mobile as typed locally", () => {
+    const profile = { nameEn: "Smile Dental", nameAr: "", addressEn: "", addressAr: "", phone: "051 1234567", mapsUrl: "", timezone: "Asia/Karachi" };
+    expect(clinicProfileSchemaFor("PK").parse(profile).phone).toBe("+92511234567");
+    expect(clinicProfileSchemaFor("PK").parse({ ...profile, phone: "0300-1234567" }).phone).toBe("+923001234567");
+    expect(clinicProfileSchemaFor("PK").parse({ ...profile, phone: "+92 51 1234567" }).phone).toBe("+92511234567");
+    expect(clinicProfileSchemaFor("PK").safeParse({ ...profile, phone: "051" }).success).toBe(false);
   });
 
   it("the English name is still required", () => {

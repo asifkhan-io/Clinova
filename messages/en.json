@@ -272,7 +272,7 @@
     "nameAr": "Clinic name (Arabic, optional)",
     "addressEn": "Address (English)",
     "addressAr": "Address (Arabic)",
-    "phone": "Phone (international format)",
+    "phone": "Clinic phone",
     "mapsUrl": "Google Maps link",
     "timezone": "Time zone",
     "rulesTitle": "Booking rules",
@@ -294,7 +294,7 @@
     },
     "errors": {
       "invalid_input": "Please check the fields.",
-      "phone": "Use international format with + and the country code, e.g. +923001234567 or +966512345678.",
+      "phone": "Enter the number as you'd dial it locally (landline or mobile), or the full international number starting with +.",
       "maps_url": "Paste a full https:// link.",
       "not_ready": "Finish the required setup steps first.",
       "unauthenticated": "Your session has ended. Sign in again.",

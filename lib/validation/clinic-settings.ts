@@ -1,4 +1,6 @@
 import { z } from "zod";
+import type { CountryCode } from "@/lib/countries";
+import { normaliseClinicPhone } from "./booking";
 import { optionalName } from "./optional-name";
 
 const optionalText = (max: number) =>
@@ -19,25 +21,26 @@ export const CLINIC_TIMEZONES = [
   "Asia/Muscat",
 ] as const;
 
-export const clinicProfileSchema = z.object({
-  nameEn: z.string().trim().min(2).max(120),
-  nameAr: optionalName(),
-  addressEn: optionalText(300),
-  addressAr: optionalText(300),
-  // Shown to patients; same E.164 shape the patients table will require.
-  phone: z
-    .string()
-    .trim()
-    .transform((v) => v.replace(/[\s-]/g, ""))
-    .refine((v) => v === "" || /^\+[1-9][0-9]{7,14}$/.test(v), "phone")
-    .transform((v) => (v === "" ? null : v)),
-  mapsUrl: z
-    .string()
-    .trim()
-    .refine((v) => v === "" || /^https:\/\/\S+$/.test(v), "maps_url")
-    .transform((v) => (v === "" ? null : v)),
-  timezone: z.enum(CLINIC_TIMEZONES),
-});
+/** The clinic profile. The phone is read in the clinic's country (local or international). */
+export const clinicProfileSchemaFor = (country: CountryCode) =>
+  z.object({
+    nameEn: z.string().trim().min(2).max(120),
+    nameAr: optionalName(),
+    addressEn: optionalText(300),
+    addressAr: optionalText(300),
+    // Shown to patients; stored in the same E.164 shape as patient numbers.
+    phone: z
+      .string()
+      .trim()
+      .refine((v) => v === "" || normaliseClinicPhone(v, country) !== null, "phone")
+      .transform((v) => (v === "" ? null : normaliseClinicPhone(v, country))),
+    mapsUrl: z
+      .string()
+      .trim()
+      .refine((v) => v === "" || /^https:\/\/\S+$/.test(v), "maps_url")
+      .transform((v) => (v === "" ? null : v)),
+    timezone: z.enum(CLINIC_TIMEZONES),
+  });
 
 export const SLOT_STEPS = [5, 10, 15, 20, 30, 60] as const;
 
