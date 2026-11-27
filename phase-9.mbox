@@ -1,0 +1,6158 @@
+From b5e7d6b3ccc3032511f33dc9e12bbe38d486c6a0 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 27 Nov 2026 19:45:57 +0500
+Subject: [PATCH 1/4] =?UTF-8?q?feat(phase-9):=20patient=20erasure:=20anony?=
+ =?UTF-8?q?mize,=20never=20delete=20(scope=20=C2=A78)?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The mechanism pre-designed in mvp-scope §8, now built (backend only; how an
+erasure is triggered is still to decide).
+
+- Migration 0008: patients.anonymized_at, and patients_clinic_phone_key made
+  partial (WHERE anonymized_at IS NULL) so erased records can share one
+  placeholder number and a returning person gets a fresh record.
+- Both patient upserts (online and staff booking) target the partial index.
+- anonymizePatient(ctx, patientId), one transaction: overwrite name and
+  phone, clear consent, cancel upcoming bookings (frees the slots), rotate
+  every access-token hash so the patient's links die, one audit event with
+  ids and counts only. No row is deleted; the clinic's history stays whole.
+- updatePatient refuses an erased record, so an erasure can't be undone by
+  an edit.
+
+10 new tests (224 total). Migration applied to a real Postgres 16 with data;
+the browser suite still passes on it.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01NjUsEhNL3KvY6tfsuwmur8
+---
+ db/migrations/0008_patient_erasure.sql        |    3 +
+ db/migrations/meta/0008_snapshot.json         | 2558 +++++++++++++++++
+ db/migrations/meta/_journal.json              |    7 +
+ db/schema.ts                                  |    8 +-
+ server/db/repositories/appointments.ts        |    1 +
+ server/db/repositories/clinic-appointments.ts |    6 +-
+ server/db/repositories/patients.ts            |   72 +-
+ tests/patient-erasure.test.ts                 |  134 +
+ 8 files changed, 2785 insertions(+), 4 deletions(-)
+ create mode 100644 db/migrations/0008_patient_erasure.sql
+ create mode 100644 db/migrations/meta/0008_snapshot.json
+ create mode 100644 tests/patient-erasure.test.ts
+
+diff --git a/db/migrations/0008_patient_erasure.sql b/db/migrations/0008_patient_erasure.sql
+new file mode 100644
+index 0000000..b1488e6
+--- /dev/null
++++ b/db/migrations/0008_patient_erasure.sql
+@@ -0,0 +1,3 @@
++DROP INDEX "patients_clinic_phone_key";--> statement-breakpoint
++ALTER TABLE "patients" ADD COLUMN "anonymized_at" timestamp with time zone;--> statement-breakpoint
++CREATE UNIQUE INDEX "patients_clinic_phone_key" ON "patients" USING btree ("clinic_id","phone_e164") WHERE "patients"."anonymized_at" IS NULL;
+\ No newline at end of file
+diff --git a/db/migrations/meta/0008_snapshot.json b/db/migrations/meta/0008_snapshot.json
+new file mode 100644
+index 0000000..e6a7455
+--- /dev/null
++++ b/db/migrations/meta/0008_snapshot.json
+@@ -0,0 +1,2558 @@
++{
++  "id": "fd7e080f-0a5d-420f-b404-1457544c8ba8",
++  "prevId": "d5a41a33-7fa1-4a1f-832e-8e6550d8d273",
++  "version": "7",
++  "dialect": "postgresql",
++  "tables": {
++    "public.accounts": {
++      "name": "accounts",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "account_id": {
++          "name": "account_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "provider_id": {
++          "name": "provider_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "user_id": {
++          "name": "user_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "access_token": {
++          "name": "access_token",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "refresh_token": {
++          "name": "refresh_token",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "id_token": {
++          "name": "id_token",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "access_token_expires_at": {
++          "name": "access_token_expires_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "refresh_token_expires_at": {
++          "name": "refresh_token_expires_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "scope": {
++          "name": "scope",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "password": {
++          "name": "password",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {
++        "accounts_user_idx": {
++          "name": "accounts_user_idx",
++          "columns": [
++            {
++              "expression": "user_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        }
++      },
++      "foreignKeys": {
++        "accounts_user_id_users_id_fk": {
++          "name": "accounts_user_id_users_id_fk",
++          "tableFrom": "accounts",
++          "tableTo": "users",
++          "columnsFrom": [
++            "user_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "cascade",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {},
++      "isRLSEnabled": false
++    },
++    "public.appointments": {
++      "name": "appointments",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "clinic_id": {
++          "name": "clinic_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "patient_id": {
++          "name": "patient_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "staff_id": {
++          "name": "staff_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "service_id": {
++          "name": "service_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "start_at": {
++          "name": "start_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "end_at": {
++          "name": "end_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "status": {
++          "name": "status",
++          "type": "appointment_status",
++          "typeSchema": "public",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "'booked'"
++        },
++        "source": {
++          "name": "source",
++          "type": "appointment_source",
++          "typeSchema": "public",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "access_token_hash": {
++          "name": "access_token_hash",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "reschedule_count": {
++          "name": "reschedule_count",
++          "type": "smallint",
++          "primaryKey": false,
++          "notNull": true,
++          "default": 0
++        },
++        "ics_sequence": {
++          "name": "ics_sequence",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "default": 0
++        },
++        "cancelled_at": {
++          "name": "cancelled_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "cancelled_by": {
++          "name": "cancelled_by",
++          "type": "cancelled_by",
++          "typeSchema": "public",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "cancelled_by_user_id": {
++          "name": "cancelled_by_user_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "status_updated_at": {
++          "name": "status_updated_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "created_by_user_id": {
++          "name": "created_by_user_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {
++        "appointments_token_key": {
++          "name": "appointments_token_key",
++          "columns": [
++            {
++              "expression": "access_token_hash",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": true,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        },
++        "appointments_clinic_start_idx": {
++          "name": "appointments_clinic_start_idx",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "start_at",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        },
++        "appointments_staff_start_idx": {
++          "name": "appointments_staff_start_idx",
++          "columns": [
++            {
++              "expression": "staff_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "start_at",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "where": "\"appointments\".\"status\" IN ('booked', 'completed')",
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        },
++        "appointments_patient_idx": {
++          "name": "appointments_patient_idx",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "patient_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "start_at",
++              "isExpression": false,
++              "asc": false,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        }
++      },
++      "foreignKeys": {
++        "appointments_clinic_id_clinics_id_fk": {
++          "name": "appointments_clinic_id_clinics_id_fk",
++          "tableFrom": "appointments",
++          "tableTo": "clinics",
++          "columnsFrom": [
++            "clinic_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "restrict",
++          "onUpdate": "no action"
++        },
++        "appointments_cancelled_by_user_id_users_id_fk": {
++          "name": "appointments_cancelled_by_user_id_users_id_fk",
++          "tableFrom": "appointments",
++          "tableTo": "users",
++          "columnsFrom": [
++            "cancelled_by_user_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "set null",
++          "onUpdate": "no action"
++        },
++        "appointments_created_by_user_id_users_id_fk": {
++          "name": "appointments_created_by_user_id_users_id_fk",
++          "tableFrom": "appointments",
++          "tableTo": "users",
++          "columnsFrom": [
++            "created_by_user_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "set null",
++          "onUpdate": "no action"
++        },
++        "appointments_patient_fk": {
++          "name": "appointments_patient_fk",
++          "tableFrom": "appointments",
++          "tableTo": "patients",
++          "columnsFrom": [
++            "clinic_id",
++            "patient_id"
++          ],
++          "columnsTo": [
++            "clinic_id",
++            "id"
++          ],
++          "onDelete": "restrict",
++          "onUpdate": "no action"
++        },
++        "appointments_staff_fk": {
++          "name": "appointments_staff_fk",
++          "tableFrom": "appointments",
++          "tableTo": "staff",
++          "columnsFrom": [
++            "clinic_id",
++            "staff_id"
++          ],
++          "columnsTo": [
++            "clinic_id",
++            "id"
++          ],
++          "onDelete": "restrict",
++          "onUpdate": "no action"
++        },
++        "appointments_service_fk": {
++          "name": "appointments_service_fk",
++          "tableFrom": "appointments",
++          "tableTo": "services",
++          "columnsFrom": [
++            "clinic_id",
++            "service_id"
++          ],
++          "columnsTo": [
++            "clinic_id",
++            "id"
++          ],
++          "onDelete": "restrict",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {
++        "appointments_time_order": {
++          "name": "appointments_time_order",
++          "value": "\"appointments\".\"end_at\" > \"appointments\".\"start_at\""
++        },
++        "appointments_reschedule_nonneg": {
++          "name": "appointments_reschedule_nonneg",
++          "value": "\"appointments\".\"reschedule_count\" >= 0"
++        },
++        "appointments_cancel_consistency": {
++          "name": "appointments_cancel_consistency",
++          "value": "(\"appointments\".\"status\" = 'cancelled' AND \"appointments\".\"cancelled_at\" IS NOT NULL AND \"appointments\".\"cancelled_by\" IS NOT NULL) OR (\"appointments\".\"status\" <> 'cancelled' AND \"appointments\".\"cancelled_at\" IS NULL)"
++        }
++      },
++      "isRLSEnabled": false
++    },
++    "public.audit_log": {
++      "name": "audit_log",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "bigserial",
++          "primaryKey": true,
++          "notNull": true
++        },
++        "clinic_id": {
++          "name": "clinic_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "actor_type": {
++          "name": "actor_type",
++          "type": "actor_type",
++          "typeSchema": "public",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "actor_user_id": {
++          "name": "actor_user_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "action": {
++          "name": "action",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "entity_type": {
++          "name": "entity_type",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "entity_id": {
++          "name": "entity_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "metadata": {
++          "name": "metadata",
++          "type": "jsonb",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "ip_hash": {
++          "name": "ip_hash",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {
++        "audit_log_clinic_time_idx": {
++          "name": "audit_log_clinic_time_idx",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "created_at",
++              "isExpression": false,
++              "asc": false,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        },
++        "audit_log_entity_idx": {
++          "name": "audit_log_entity_idx",
++          "columns": [
++            {
++              "expression": "entity_type",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "entity_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "created_at",
++              "isExpression": false,
++              "asc": false,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        }
++      },
++      "foreignKeys": {
++        "audit_log_clinic_id_clinics_id_fk": {
++          "name": "audit_log_clinic_id_clinics_id_fk",
++          "tableFrom": "audit_log",
++          "tableTo": "clinics",
++          "columnsFrom": [
++            "clinic_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "set null",
++          "onUpdate": "no action"
++        },
++        "audit_log_actor_user_id_users_id_fk": {
++          "name": "audit_log_actor_user_id_users_id_fk",
++          "tableFrom": "audit_log",
++          "tableTo": "users",
++          "columnsFrom": [
++            "actor_user_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "set null",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {},
++      "isRLSEnabled": false
++    },
++    "public.clinic_hours": {
++      "name": "clinic_hours",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "clinic_id": {
++          "name": "clinic_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "day_of_week": {
++          "name": "day_of_week",
++          "type": "smallint",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "start_minute": {
++          "name": "start_minute",
++          "type": "smallint",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "end_minute": {
++          "name": "end_minute",
++          "type": "smallint",
++          "primaryKey": false,
++          "notNull": true
++        }
++      },
++      "indexes": {
++        "clinic_hours_clinic_day_idx": {
++          "name": "clinic_hours_clinic_day_idx",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "day_of_week",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        }
++      },
++      "foreignKeys": {
++        "clinic_hours_clinic_id_clinics_id_fk": {
++          "name": "clinic_hours_clinic_id_clinics_id_fk",
++          "tableFrom": "clinic_hours",
++          "tableTo": "clinics",
++          "columnsFrom": [
++            "clinic_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "cascade",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {
++        "clinic_hours_dow": {
++          "name": "clinic_hours_dow",
++          "value": "\"clinic_hours\".\"day_of_week\" BETWEEN 0 AND 6"
++        },
++        "clinic_hours_bounds": {
++          "name": "clinic_hours_bounds",
++          "value": "\"clinic_hours\".\"start_minute\" >= 0 AND \"clinic_hours\".\"end_minute\" <= 1440 AND \"clinic_hours\".\"start_minute\" < \"clinic_hours\".\"end_minute\""
++        }
++      },
++      "isRLSEnabled": false
++    },
++    "public.clinic_members": {
++      "name": "clinic_members",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "clinic_id": {
++          "name": "clinic_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "user_id": {
++          "name": "user_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "role": {
++          "name": "role",
++          "type": "clinic_role",
++          "typeSchema": "public",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "is_active": {
++          "name": "is_active",
++          "type": "boolean",
++          "primaryKey": false,
++          "notNull": true,
++          "default": true
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {
++        "clinic_members_clinic_user_key": {
++          "name": "clinic_members_clinic_user_key",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "user_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": true,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        },
++        "clinic_members_user_idx": {
++          "name": "clinic_members_user_idx",
++          "columns": [
++            {
++              "expression": "user_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        }
++      },
++      "foreignKeys": {
++        "clinic_members_clinic_id_clinics_id_fk": {
++          "name": "clinic_members_clinic_id_clinics_id_fk",
++          "tableFrom": "clinic_members",
++          "tableTo": "clinics",
++          "columnsFrom": [
++            "clinic_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "cascade",
++          "onUpdate": "no action"
++        },
++        "clinic_members_user_id_users_id_fk": {
++          "name": "clinic_members_user_id_users_id_fk",
++          "tableFrom": "clinic_members",
++          "tableTo": "users",
++          "columnsFrom": [
++            "user_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "cascade",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {},
++      "isRLSEnabled": false
++    },
++    "public.clinics": {
++      "name": "clinics",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "slug": {
++          "name": "slug",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "name_en": {
++          "name": "name_en",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "name_ar": {
++          "name": "name_ar",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "address_en": {
++          "name": "address_en",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "address_ar": {
++          "name": "address_ar",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "phone": {
++          "name": "phone",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "maps_url": {
++          "name": "maps_url",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "timezone": {
++          "name": "timezone",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "'Asia/Riyadh'"
++        },
++        "clinic_type": {
++          "name": "clinic_type",
++          "type": "clinic_type",
++          "typeSchema": "public",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "'dental'"
++        },
++        "status": {
++          "name": "status",
++          "type": "clinic_status",
++          "typeSchema": "public",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "'trial'"
++        },
++        "trial_ends_at": {
++          "name": "trial_ends_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "booking_enabled": {
++          "name": "booking_enabled",
++          "type": "boolean",
++          "primaryKey": false,
++          "notNull": true,
++          "default": false
++        },
++        "buffer_minutes": {
++          "name": "buffer_minutes",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "default": 0
++        },
++        "min_lead_minutes": {
++          "name": "min_lead_minutes",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "default": 120
++        },
++        "max_horizon_days": {
++          "name": "max_horizon_days",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "default": 60
++        },
++        "change_cutoff_minutes": {
++          "name": "change_cutoff_minutes",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "default": 120
++        },
++        "slot_granularity_minutes": {
++          "name": "slot_granularity_minutes",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "default": 15
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {
++        "clinics_slug_key": {
++          "name": "clinics_slug_key",
++          "columns": [
++            {
++              "expression": "slug",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": true,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        }
++      },
++      "foreignKeys": {},
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {
++        "clinics_slug_format": {
++          "name": "clinics_slug_format",
++          "value": "\"clinics\".\"slug\" ~ '^[a-z0-9]+(-[a-z0-9]+)*$'"
++        },
++        "clinics_buffer_range": {
++          "name": "clinics_buffer_range",
++          "value": "\"clinics\".\"buffer_minutes\" BETWEEN 0 AND 120"
++        },
++        "clinics_lead_range": {
++          "name": "clinics_lead_range",
++          "value": "\"clinics\".\"min_lead_minutes\" BETWEEN 0 AND 20160"
++        },
++        "clinics_horizon_range": {
++          "name": "clinics_horizon_range",
++          "value": "\"clinics\".\"max_horizon_days\" BETWEEN 1 AND 365"
++        },
++        "clinics_cutoff_range": {
++          "name": "clinics_cutoff_range",
++          "value": "\"clinics\".\"change_cutoff_minutes\" BETWEEN 0 AND 20160"
++        },
++        "clinics_granularity_allowed": {
++          "name": "clinics_granularity_allowed",
++          "value": "\"clinics\".\"slot_granularity_minutes\" IN (5, 10, 15, 20, 30, 60)"
++        }
++      },
++      "isRLSEnabled": false
++    },
++    "public.invites": {
++      "name": "invites",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "clinic_id": {
++          "name": "clinic_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "email": {
++          "name": "email",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "role": {
++          "name": "role",
++          "type": "clinic_role",
++          "typeSchema": "public",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "token_hash": {
++          "name": "token_hash",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "expires_at": {
++          "name": "expires_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "accepted_at": {
++          "name": "accepted_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "accepted_by_user_id": {
++          "name": "accepted_by_user_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "invited_by_user_id": {
++          "name": "invited_by_user_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {
++        "invites_token_hash_key": {
++          "name": "invites_token_hash_key",
++          "columns": [
++            {
++              "expression": "token_hash",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": true,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        },
++        "invites_pending_key": {
++          "name": "invites_pending_key",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "lower(\"email\")",
++              "asc": true,
++              "isExpression": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": true,
++          "where": "\"invites\".\"accepted_at\" IS NULL",
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        }
++      },
++      "foreignKeys": {
++        "invites_clinic_id_clinics_id_fk": {
++          "name": "invites_clinic_id_clinics_id_fk",
++          "tableFrom": "invites",
++          "tableTo": "clinics",
++          "columnsFrom": [
++            "clinic_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "cascade",
++          "onUpdate": "no action"
++        },
++        "invites_accepted_by_user_id_users_id_fk": {
++          "name": "invites_accepted_by_user_id_users_id_fk",
++          "tableFrom": "invites",
++          "tableTo": "users",
++          "columnsFrom": [
++            "accepted_by_user_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "set null",
++          "onUpdate": "no action"
++        },
++        "invites_invited_by_user_id_users_id_fk": {
++          "name": "invites_invited_by_user_id_users_id_fk",
++          "tableFrom": "invites",
++          "tableTo": "users",
++          "columnsFrom": [
++            "invited_by_user_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "set null",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {},
++      "isRLSEnabled": false
++    },
++    "public.notification_runs": {
++      "name": "notification_runs",
++      "schema": "",
++      "columns": {
++        "clinic_id": {
++          "name": "clinic_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "kind": {
++          "name": "kind",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "run_key": {
++          "name": "run_key",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {},
++      "foreignKeys": {
++        "notification_runs_clinic_id_clinics_id_fk": {
++          "name": "notification_runs_clinic_id_clinics_id_fk",
++          "tableFrom": "notification_runs",
++          "tableTo": "clinics",
++          "columnsFrom": [
++            "clinic_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "cascade",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {
++        "notification_runs_clinic_id_kind_run_key_pk": {
++          "name": "notification_runs_clinic_id_kind_run_key_pk",
++          "columns": [
++            "clinic_id",
++            "kind",
++            "run_key"
++          ]
++        }
++      },
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {},
++      "isRLSEnabled": false
++    },
++    "public.patients": {
++      "name": "patients",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "clinic_id": {
++          "name": "clinic_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "full_name": {
++          "name": "full_name",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "phone_e164": {
++          "name": "phone_e164",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "consent_at": {
++          "name": "consent_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "consent_policy_version": {
++          "name": "consent_policy_version",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "anonymized_at": {
++          "name": "anonymized_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {
++        "patients_clinic_phone_key": {
++          "name": "patients_clinic_phone_key",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "phone_e164",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": true,
++          "where": "\"patients\".\"anonymized_at\" IS NULL",
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        },
++        "patients_clinic_id_key": {
++          "name": "patients_clinic_id_key",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": true,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        }
++      },
++      "foreignKeys": {
++        "patients_clinic_id_clinics_id_fk": {
++          "name": "patients_clinic_id_clinics_id_fk",
++          "tableFrom": "patients",
++          "tableTo": "clinics",
++          "columnsFrom": [
++            "clinic_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "cascade",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {
++        "patients_phone_e164": {
++          "name": "patients_phone_e164",
++          "value": "\"patients\".\"phone_e164\" ~ '^\\+[1-9][0-9]{7,14}$'"
++        }
++      },
++      "isRLSEnabled": false
++    },
++    "public.platform_admins": {
++      "name": "platform_admins",
++      "schema": "",
++      "columns": {
++        "user_id": {
++          "name": "user_id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true
++        },
++        "granted_at": {
++          "name": "granted_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "granted_by_user_id": {
++          "name": "granted_by_user_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": false
++        }
++      },
++      "indexes": {},
++      "foreignKeys": {
++        "platform_admins_user_id_users_id_fk": {
++          "name": "platform_admins_user_id_users_id_fk",
++          "tableFrom": "platform_admins",
++          "tableTo": "users",
++          "columnsFrom": [
++            "user_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "cascade",
++          "onUpdate": "no action"
++        },
++        "platform_admins_granted_by_user_id_users_id_fk": {
++          "name": "platform_admins_granted_by_user_id_users_id_fk",
++          "tableFrom": "platform_admins",
++          "tableTo": "users",
++          "columnsFrom": [
++            "granted_by_user_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "set null",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {},
++      "isRLSEnabled": false
++    },
++    "public.rate_limits": {
++      "name": "rate_limits",
++      "schema": "",
++      "columns": {
++        "bucket": {
++          "name": "bucket",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "identifier_hash": {
++          "name": "identifier_hash",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "window_start": {
++          "name": "window_start",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "count": {
++          "name": "count",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "default": 0
++        }
++      },
++      "indexes": {
++        "rate_limits_window_idx": {
++          "name": "rate_limits_window_idx",
++          "columns": [
++            {
++              "expression": "window_start",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        }
++      },
++      "foreignKeys": {},
++      "compositePrimaryKeys": {
++        "rate_limits_bucket_identifier_hash_window_start_pk": {
++          "name": "rate_limits_bucket_identifier_hash_window_start_pk",
++          "columns": [
++            "bucket",
++            "identifier_hash",
++            "window_start"
++          ]
++        }
++      },
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {
++        "rate_limits_count_positive": {
++          "name": "rate_limits_count_positive",
++          "value": "\"rate_limits\".\"count\" > 0"
++        }
++      },
++      "isRLSEnabled": false
++    },
++    "public.schedule_override_intervals": {
++      "name": "schedule_override_intervals",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "override_id": {
++          "name": "override_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "start_minute": {
++          "name": "start_minute",
++          "type": "smallint",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "end_minute": {
++          "name": "end_minute",
++          "type": "smallint",
++          "primaryKey": false,
++          "notNull": true
++        }
++      },
++      "indexes": {
++        "schedule_override_intervals_override_idx": {
++          "name": "schedule_override_intervals_override_idx",
++          "columns": [
++            {
++              "expression": "override_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        }
++      },
++      "foreignKeys": {
++        "schedule_override_intervals_override_id_schedule_overrides_id_fk": {
++          "name": "schedule_override_intervals_override_id_schedule_overrides_id_fk",
++          "tableFrom": "schedule_override_intervals",
++          "tableTo": "schedule_overrides",
++          "columnsFrom": [
++            "override_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "cascade",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {
++        "schedule_override_intervals_bounds": {
++          "name": "schedule_override_intervals_bounds",
++          "value": "\"schedule_override_intervals\".\"start_minute\" >= 0 AND \"schedule_override_intervals\".\"end_minute\" <= 1440 AND \"schedule_override_intervals\".\"start_minute\" < \"schedule_override_intervals\".\"end_minute\""
++        }
++      },
++      "isRLSEnabled": false
++    },
++    "public.schedule_overrides": {
++      "name": "schedule_overrides",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "clinic_id": {
++          "name": "clinic_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "staff_id": {
++          "name": "staff_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "start_date": {
++          "name": "start_date",
++          "type": "date",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "end_date": {
++          "name": "end_date",
++          "type": "date",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "type": {
++          "name": "type",
++          "type": "override_type",
++          "typeSchema": "public",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "label_en": {
++          "name": "label_en",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "label_ar": {
++          "name": "label_ar",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {
++        "schedule_overrides_lookup_idx": {
++          "name": "schedule_overrides_lookup_idx",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "start_date",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "end_date",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        }
++      },
++      "foreignKeys": {
++        "schedule_overrides_clinic_id_clinics_id_fk": {
++          "name": "schedule_overrides_clinic_id_clinics_id_fk",
++          "tableFrom": "schedule_overrides",
++          "tableTo": "clinics",
++          "columnsFrom": [
++            "clinic_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "cascade",
++          "onUpdate": "no action"
++        },
++        "schedule_overrides_staff_fk": {
++          "name": "schedule_overrides_staff_fk",
++          "tableFrom": "schedule_overrides",
++          "tableTo": "staff",
++          "columnsFrom": [
++            "clinic_id",
++            "staff_id"
++          ],
++          "columnsTo": [
++            "clinic_id",
++            "id"
++          ],
++          "onDelete": "cascade",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {
++        "schedule_overrides_date_order": {
++          "name": "schedule_overrides_date_order",
++          "value": "\"schedule_overrides\".\"start_date\" <= \"schedule_overrides\".\"end_date\""
++        }
++      },
++      "isRLSEnabled": false
++    },
++    "public.services": {
++      "name": "services",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "clinic_id": {
++          "name": "clinic_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "name_en": {
++          "name": "name_en",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "name_ar": {
++          "name": "name_ar",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "description_en": {
++          "name": "description_en",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "description_ar": {
++          "name": "description_ar",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "duration_minutes": {
++          "name": "duration_minutes",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "price_minor": {
++          "name": "price_minor",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "is_active": {
++          "name": "is_active",
++          "type": "boolean",
++          "primaryKey": false,
++          "notNull": true,
++          "default": true
++        },
++        "sort_order": {
++          "name": "sort_order",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "default": 0
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {
++        "services_clinic_active_idx": {
++          "name": "services_clinic_active_idx",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "is_active",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        },
++        "services_clinic_id_key": {
++          "name": "services_clinic_id_key",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": true,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        }
++      },
++      "foreignKeys": {
++        "services_clinic_id_clinics_id_fk": {
++          "name": "services_clinic_id_clinics_id_fk",
++          "tableFrom": "services",
++          "tableTo": "clinics",
++          "columnsFrom": [
++            "clinic_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "cascade",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {
++        "services_duration_range": {
++          "name": "services_duration_range",
++          "value": "\"services\".\"duration_minutes\" BETWEEN 5 AND 480"
++        },
++        "services_duration_step": {
++          "name": "services_duration_step",
++          "value": "\"services\".\"duration_minutes\" % 5 = 0"
++        },
++        "services_price_nonneg": {
++          "name": "services_price_nonneg",
++          "value": "\"services\".\"price_minor\" IS NULL OR \"services\".\"price_minor\" >= 0"
++        }
++      },
++      "isRLSEnabled": false
++    },
++    "public.sessions": {
++      "name": "sessions",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "expires_at": {
++          "name": "expires_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "token": {
++          "name": "token",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "ip_address": {
++          "name": "ip_address",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "user_agent": {
++          "name": "user_agent",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "user_id": {
++          "name": "user_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        }
++      },
++      "indexes": {
++        "sessions_user_idx": {
++          "name": "sessions_user_idx",
++          "columns": [
++            {
++              "expression": "user_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        }
++      },
++      "foreignKeys": {
++        "sessions_user_id_users_id_fk": {
++          "name": "sessions_user_id_users_id_fk",
++          "tableFrom": "sessions",
++          "tableTo": "users",
++          "columnsFrom": [
++            "user_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "cascade",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {
++        "sessions_token_unique": {
++          "name": "sessions_token_unique",
++          "nullsNotDistinct": false,
++          "columns": [
++            "token"
++          ]
++        }
++      },
++      "policies": {},
++      "checkConstraints": {},
++      "isRLSEnabled": false
++    },
++    "public.staff": {
++      "name": "staff",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "clinic_id": {
++          "name": "clinic_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "user_id": {
++          "name": "user_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "display_name_en": {
++          "name": "display_name_en",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "display_name_ar": {
++          "name": "display_name_ar",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "title_en": {
++          "name": "title_en",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "title_ar": {
++          "name": "title_ar",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "is_active": {
++          "name": "is_active",
++          "type": "boolean",
++          "primaryKey": false,
++          "notNull": true,
++          "default": true
++        },
++        "sort_order": {
++          "name": "sort_order",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "default": 0
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {
++        "staff_clinic_active_idx": {
++          "name": "staff_clinic_active_idx",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "is_active",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        },
++        "staff_clinic_id_key": {
++          "name": "staff_clinic_id_key",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": true,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        },
++        "staff_clinic_user_key": {
++          "name": "staff_clinic_user_key",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "user_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": true,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        }
++      },
++      "foreignKeys": {
++        "staff_clinic_id_clinics_id_fk": {
++          "name": "staff_clinic_id_clinics_id_fk",
++          "tableFrom": "staff",
++          "tableTo": "clinics",
++          "columnsFrom": [
++            "clinic_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "cascade",
++          "onUpdate": "no action"
++        },
++        "staff_user_id_users_id_fk": {
++          "name": "staff_user_id_users_id_fk",
++          "tableFrom": "staff",
++          "tableTo": "users",
++          "columnsFrom": [
++            "user_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "set null",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {},
++      "isRLSEnabled": false
++    },
++    "public.staff_hours": {
++      "name": "staff_hours",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "clinic_id": {
++          "name": "clinic_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "staff_id": {
++          "name": "staff_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "day_of_week": {
++          "name": "day_of_week",
++          "type": "smallint",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "start_minute": {
++          "name": "start_minute",
++          "type": "smallint",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "end_minute": {
++          "name": "end_minute",
++          "type": "smallint",
++          "primaryKey": false,
++          "notNull": true
++        }
++      },
++      "indexes": {
++        "staff_hours_staff_day_idx": {
++          "name": "staff_hours_staff_day_idx",
++          "columns": [
++            {
++              "expression": "staff_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "day_of_week",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        }
++      },
++      "foreignKeys": {
++        "staff_hours_clinic_id_clinics_id_fk": {
++          "name": "staff_hours_clinic_id_clinics_id_fk",
++          "tableFrom": "staff_hours",
++          "tableTo": "clinics",
++          "columnsFrom": [
++            "clinic_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "cascade",
++          "onUpdate": "no action"
++        },
++        "staff_hours_staff_fk": {
++          "name": "staff_hours_staff_fk",
++          "tableFrom": "staff_hours",
++          "tableTo": "staff",
++          "columnsFrom": [
++            "clinic_id",
++            "staff_id"
++          ],
++          "columnsTo": [
++            "clinic_id",
++            "id"
++          ],
++          "onDelete": "cascade",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {
++        "staff_hours_dow": {
++          "name": "staff_hours_dow",
++          "value": "\"staff_hours\".\"day_of_week\" BETWEEN 0 AND 6"
++        },
++        "staff_hours_bounds": {
++          "name": "staff_hours_bounds",
++          "value": "\"staff_hours\".\"start_minute\" >= 0 AND \"staff_hours\".\"end_minute\" <= 1440 AND \"staff_hours\".\"start_minute\" < \"staff_hours\".\"end_minute\""
++        }
++      },
++      "isRLSEnabled": false
++    },
++    "public.staff_services": {
++      "name": "staff_services",
++      "schema": "",
++      "columns": {
++        "clinic_id": {
++          "name": "clinic_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "staff_id": {
++          "name": "staff_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "service_id": {
++          "name": "service_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        }
++      },
++      "indexes": {
++        "staff_services_service_idx": {
++          "name": "staff_services_service_idx",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "service_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        }
++      },
++      "foreignKeys": {
++        "staff_services_clinic_id_clinics_id_fk": {
++          "name": "staff_services_clinic_id_clinics_id_fk",
++          "tableFrom": "staff_services",
++          "tableTo": "clinics",
++          "columnsFrom": [
++            "clinic_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "cascade",
++          "onUpdate": "no action"
++        },
++        "staff_services_staff_fk": {
++          "name": "staff_services_staff_fk",
++          "tableFrom": "staff_services",
++          "tableTo": "staff",
++          "columnsFrom": [
++            "clinic_id",
++            "staff_id"
++          ],
++          "columnsTo": [
++            "clinic_id",
++            "id"
++          ],
++          "onDelete": "cascade",
++          "onUpdate": "no action"
++        },
++        "staff_services_service_fk": {
++          "name": "staff_services_service_fk",
++          "tableFrom": "staff_services",
++          "tableTo": "services",
++          "columnsFrom": [
++            "clinic_id",
++            "service_id"
++          ],
++          "columnsTo": [
++            "clinic_id",
++            "id"
++          ],
++          "onDelete": "cascade",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {
++        "staff_services_staff_id_service_id_pk": {
++          "name": "staff_services_staff_id_service_id_pk",
++          "columns": [
++            "staff_id",
++            "service_id"
++          ]
++        }
++      },
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {},
++      "isRLSEnabled": false
++    },
++    "public.users": {
++      "name": "users",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "name": {
++          "name": "name",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "email": {
++          "name": "email",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "email_verified": {
++          "name": "email_verified",
++          "type": "boolean",
++          "primaryKey": false,
++          "notNull": true,
++          "default": false
++        },
++        "image": {
++          "name": "image",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {},
++      "foreignKeys": {},
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {
++        "users_email_unique": {
++          "name": "users_email_unique",
++          "nullsNotDistinct": false,
++          "columns": [
++            "email"
++          ]
++        }
++      },
++      "policies": {},
++      "checkConstraints": {},
++      "isRLSEnabled": false
++    },
++    "public.verifications": {
++      "name": "verifications",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "identifier": {
++          "name": "identifier",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "value": {
++          "name": "value",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "expires_at": {
++          "name": "expires_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {
++        "verifications_identifier_idx": {
++          "name": "verifications_identifier_idx",
++          "columns": [
++            {
++              "expression": "identifier",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        }
++      },
++      "foreignKeys": {},
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {},
++      "isRLSEnabled": false
++    }
++  },
++  "enums": {
++    "public.actor_type": {
++      "name": "actor_type",
++      "schema": "public",
++      "values": [
++        "patient",
++        "member",
++        "platform_admin",
++        "system"
++      ]
++    },
++    "public.appointment_source": {
++      "name": "appointment_source",
++      "schema": "public",
++      "values": [
++        "online",
++        "staff"
++      ]
++    },
++    "public.appointment_status": {
++      "name": "appointment_status",
++      "schema": "public",
++      "values": [
++        "booked",
++        "completed",
++        "cancelled",
++        "no_show"
++      ]
++    },
++    "public.cancelled_by": {
++      "name": "cancelled_by",
++      "schema": "public",
++      "values": [
++        "patient",
++        "staff"
++      ]
++    },
++    "public.clinic_role": {
++      "name": "clinic_role",
++      "schema": "public",
++      "values": [
++        "clinic_owner",
++        "clinic_staff"
++      ]
++    },
++    "public.clinic_status": {
++      "name": "clinic_status",
++      "schema": "public",
++      "values": [
++        "trial",
++        "active",
++        "suspended"
++      ]
++    },
++    "public.clinic_type": {
++      "name": "clinic_type",
++      "schema": "public",
++      "values": [
++        "dental"
++      ]
++    },
++    "public.override_type": {
++      "name": "override_type",
++      "schema": "public",
++      "values": [
++        "closed",
++        "custom_hours"
++      ]
++    }
++  },
++  "schemas": {},
++  "sequences": {},
++  "roles": {},
++  "policies": {},
++  "views": {},
++  "_meta": {
++    "columns": {},
++    "schemas": {},
++    "tables": {}
++  }
++}
+\ No newline at end of file
+diff --git a/db/migrations/meta/_journal.json b/db/migrations/meta/_journal.json
+index d326209..f1af662 100644
+--- a/db/migrations/meta/_journal.json
++++ b/db/migrations/meta/_journal.json
+@@ -57,6 +57,13 @@
+       "when": 1795696666102,
+       "tag": "0007_notification_runs",
+       "breakpoints": true
++    },
++    {
++      "idx": 8,
++      "version": "7",
++      "when": 1795790444555,
++      "tag": "0008_patient_erasure",
++      "breakpoints": true
+     }
+   ]
+ }
+\ No newline at end of file
+diff --git a/db/schema.ts b/db/schema.ts
+index a41e578..964a804 100644
+--- a/db/schema.ts
++++ b/db/schema.ts
+@@ -503,12 +503,18 @@ export const patients = pgTable(
+     // D8: PDPL lawful basis has to be evidenced somewhere.
+     consentAt: timestamp("consent_at", { withTimezone: true }),
+     consentPolicyVersion: text("consent_policy_version"),
++    // Erasure (scope §8): set when the name and phone were overwritten on the
++    // patient's request. The row stays so the clinic's history and the audit
++    // log stay intact; it is never deleted.
++    anonymizedAt: timestamp("anonymized_at", { withTimezone: true }),
+     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+   },
+   (t) => [
+     // One patient per phone per clinic — the booking flow's upsert targets this.
+-    uniqueIndex("patients_clinic_phone_key").on(t.clinicId, t.phoneE164),
++    // Partial: erased records all share one placeholder number, and a person who
++    // was erased and books again must get a fresh record, not the erased one.
++    uniqueIndex("patients_clinic_phone_key").on(t.clinicId, t.phoneE164).where(sql`${t.anonymizedAt} IS NULL`),
+     uniqueIndex("patients_clinic_id_key").on(t.clinicId, t.id), // composite-FK target
+     check("patients_phone_e164", sql`${t.phoneE164} ~ '^\\+[1-9][0-9]{7,14}$'`),
+   ],
+diff --git a/server/db/repositories/appointments.ts b/server/db/repositories/appointments.ts
+index 85a2230..d7f959a 100644
+--- a/server/db/repositories/appointments.ts
++++ b/server/db/repositories/appointments.ts
+@@ -76,6 +76,7 @@ export async function insertOnlineBooking(
+         })
+         .onConflictDoUpdate({
+           target: [patients.clinicId, patients.phoneE164],
++          targetWhere: sql`${patients.anonymizedAt} IS NULL`, // the partial unique index (erasure)
+           set: { consentAt: sql`now()`, consentPolicyVersion: input.consentPolicyVersion, updatedAt: sql`now()` },
+         })
+         .returning({ id: patients.id });
+diff --git a/server/db/repositories/clinic-appointments.ts b/server/db/repositories/clinic-appointments.ts
+index 485521b..dbe81d7 100644
+--- a/server/db/repositories/clinic-appointments.ts
++++ b/server/db/repositories/clinic-appointments.ts
+@@ -72,7 +72,11 @@ export async function insertStaffBooking(
+       const [patient] = await tx
+         .insert(patients)
+         .values({ clinicId: ctx.clinicId, fullName: input.fullName, phoneE164: input.phoneE164 })
+-        .onConflictDoUpdate({ target: [patients.clinicId, patients.phoneE164], set: { updatedAt: sql`now()` } })
++        .onConflictDoUpdate({
++          target: [patients.clinicId, patients.phoneE164],
++          targetWhere: sql`${patients.anonymizedAt} IS NULL`, // the partial unique index (erasure)
++          set: { updatedAt: sql`now()` },
++        })
+         .returning({ id: patients.id });
+       if (!patient) throw new Error("patient upsert returned no row");
+ 
+diff --git a/server/db/repositories/patients.ts b/server/db/repositories/patients.ts
+index 5642e6f..f85326e 100644
+--- a/server/db/repositories/patients.ts
++++ b/server/db/repositories/patients.ts
+@@ -1,4 +1,5 @@
+-import { and, asc, count, desc, eq, ilike, like, max, or, sql } from "drizzle-orm";
++import { randomBytes } from "node:crypto";
++import { and, asc, count, desc, eq, gt, ilike, isNull, like, max, or, sql } from "drizzle-orm";
+ import { appointments, auditLog, patients, services, staff } from "../../../db/schema";
+ import type { ClinicContext } from "./context";
+ 
+@@ -80,9 +81,10 @@ export async function updatePatient(ctx: ClinicContext, patientId: string, input
+       const [before] = await tx
+         .select({ fullName: patients.fullName, phoneE164: patients.phoneE164 })
+         .from(patients)
+-        .where(and(eq(patients.id, patientId), eq(patients.clinicId, ctx.clinicId)))
++        .where(and(eq(patients.id, patientId), eq(patients.clinicId, ctx.clinicId), isNull(patients.anonymizedAt)))
+         .for("update")
+         .limit(1);
++      // An erased record can't be given a name or number again (that would undo the erasure).
+       if (!before) return { ok: false, reason: "not_found" } as const;
+       await tx
+         .update(patients)
+@@ -107,3 +109,69 @@ export async function updatePatient(ctx: ClinicContext, patientId: string, input
+     throw error;
+   }
+ }
++
++/** What an erased record holds instead of the patient's name and number. */
++export const ERASED_NAME = "—";
++/** +999 is not an assigned country code, so this can never reach a real phone. Satisfies the E.164 check. */
++export const ERASED_PHONE = "+99900000000";
++
++export type AnonymizePatientResult =
++  | { ok: true; cancelledUpcoming: number }
++  | { ok: false; reason: "not_found" | "already_anonymized" };
++
++/**
++ * Erasure on the patient's request (scope §8): ANONYMIZE, NEVER DELETE.
++ * In one transaction:
++ * - the name and phone are overwritten and consent is cleared;
++ * - upcoming bookings are cancelled, so the clinic isn't left holding slots for
++ *   someone it can no longer contact (past history stays as it was);
++ * - every private link the patient held stops working (fresh random hashes:
++ *   nobody knows a token for them);
++ * - one audit event, ids and counts only.
++ * The appointment rows stay, so the clinic's history and the audit log remain
++ * whole. Never "fix" this with DELETE or ON DELETE CASCADE.
++ */
++export async function anonymizePatient(ctx: ClinicContext, patientId: string, nowMs: number = Date.now()): Promise<AnonymizePatientResult> {
++  return ctx.db.transaction(async (tx) => {
++    const [row] = await tx
++      .select({ anonymizedAt: patients.anonymizedAt })
++      .from(patients)
++      .where(and(eq(patients.id, patientId), eq(patients.clinicId, ctx.clinicId)))
++      .for("update")
++      .limit(1);
++    if (!row) return { ok: false, reason: "not_found" } as const;
++    if (row.anonymizedAt) return { ok: false, reason: "already_anonymized" } as const;
++
++    const now = new Date(nowMs);
++    await tx
++      .update(patients)
++      .set({ fullName: ERASED_NAME, phoneE164: ERASED_PHONE, consentAt: null, consentPolicyVersion: null, anonymizedAt: now, updatedAt: now })
++      .where(and(eq(patients.id, patientId), eq(patients.clinicId, ctx.clinicId)));
++
++    const mine = and(eq(appointments.clinicId, ctx.clinicId), eq(appointments.patientId, patientId));
++    const cancelled = await tx
++      .update(appointments)
++      .set({ status: "cancelled", cancelledAt: now, cancelledBy: "staff", cancelledByUserId: ctx.userId, updatedAt: now })
++      .where(and(mine, eq(appointments.status, "booked"), gt(appointments.startAt, now)))
++      .returning({ id: appointments.id });
++
++    const all = await tx.select({ id: appointments.id }).from(appointments).where(mine);
++    for (const { id } of all) {
++      await tx
++        .update(appointments)
++        .set({ accessTokenHash: randomBytes(32).toString("hex") })
++        .where(and(eq(appointments.id, id), eq(appointments.clinicId, ctx.clinicId)));
++    }
++
++    await tx.insert(auditLog).values({
++      clinicId: ctx.clinicId,
++      actorType: "member",
++      actorUserId: ctx.userId,
++      action: "patient.anonymized",
++      entityType: "patient",
++      entityId: patientId,
++      metadata: { cancelledUpcoming: cancelled.length, appointmentIds: all.map((a) => a.id) },
++    });
++    return { ok: true, cancelledUpcoming: cancelled.length } as const;
++  });
++}
+diff --git a/tests/patient-erasure.test.ts b/tests/patient-erasure.test.ts
+new file mode 100644
+index 0000000..43cad47
+--- /dev/null
++++ b/tests/patient-erasure.test.ts
+@@ -0,0 +1,134 @@
++/**
++ * Phase 9 — erasure on the patient's request (scope §8): anonymize, never
++ * delete. The clinic keeps its history; the person disappears from it.
++ */
++import { beforeAll, describe, expect, it, vi } from "vitest";
++import { and, eq } from "drizzle-orm";
++import { appointments, auditLog, clinics, patients, users } from "@/db/schema";
++import { createTestDb } from "./helpers/db";
++import { expectNoPii } from "./helpers/pii";
++
++const { db } = await createTestDb();
++vi.mock("@/server/db/client", () => ({ db }));
++
++const services = await import("@/server/db/repositories/services");
++const staffRepo = await import("@/server/db/repositories/staff");
++const hours = await import("@/server/db/repositories/hours");
++const clinicsRepo = await import("@/server/db/repositories/clinics");
++const patientsRepo = await import("@/server/db/repositories/patients");
++const { createPublicBooking } = await import("@/server/services/booking");
++const { getPatientAppointment } = await import("@/server/services/appointment-changes");
++const { hashToken } = await import("@/server/services/tokens");
++const { localToUtc } = await import("@/lib/time/zoned");
++
++type Ctx = Parameters<typeof services.listServices>[0];
++let ctx: Ctx;
++let other: Ctx;
++let cleaning: string;
++let sara: string;
++const PHONE = "+966512345678";
++const PAST = Date.UTC(2027, 0, 1); // when the bookings are made
++const DATE = "2027-01-03"; // Sunday
++const at = (h: number, m = 0, date = DATE) => localToUtc(date, h * 60 + m, "Asia/Riyadh")!;
++const ERASE_AT = at(10, 30); // between the 09:00 visit and the 11:00 one
++
++const book = (startMs: number, phoneE164 = PHONE, fullName = "Noura Ali") =>
++  createPublicBooking(ctx, { serviceId: cleaning, staffId: sara, startMs, fullName, phoneE164 }, PAST);
++const patientRow = async (id: string) => (await db.select().from(patients).where(eq(patients.id, id)))[0]!;
++const apptRow = async (id: string) => (await db.select().from(appointments).where(eq(appointments.id, id)))[0]!;
++
++let nouraId: string;
++let earlier: { id: string; token: string };
++let later: { id: string; token: string };
++
++beforeAll(async () => {
++  const [u, u2] = await db.insert(users).values([{ name: "Owner", email: "owner@smile.test" }, { name: "Other", email: "owner@other.test" }]).returning({ id: users.id });
++  const [a, b] = await db
++    .insert(clinics)
++    .values([
++      { slug: "smile", nameEn: "Smile", nameAr: "ابتسامة", bookingEnabled: true },
++      { slug: "other", nameEn: "Other", nameAr: "أخرى" },
++    ])
++    .returning({ id: clinics.id });
++  ctx = { db, clinicId: a!.id, userId: u!.id, role: "clinic_owner", clinicStatus: "active" };
++  other = { db, clinicId: b!.id, userId: u2!.id, role: "clinic_owner", clinicStatus: "active" };
++  await clinicsRepo.updateBookingRules(ctx, { bufferMinutes: 0, minLeadMinutes: 0, maxHorizonDays: 365, changeCutoffMinutes: 0, slotGranularityMinutes: 30 });
++  cleaning = (await services.createService(ctx, { nameEn: "Cleaning", nameAr: "تنظيف", descriptionEn: null, descriptionAr: null, durationMinutes: 30, priceMinor: null })).id;
++  sara = (await staffRepo.createStaff(ctx, { displayNameEn: "Sara", displayNameAr: "سارة", titleEn: null, titleAr: null })).id;
++  await hours.replaceStaffHours(ctx, sara, [{ dayOfWeek: 0, startMinute: 480, endMinute: 1080 }]);
++
++  const r1 = await book(at(9));
++  const r2 = await book(at(11));
++  if (!r1.ok || !r2.ok) throw new Error("setup bookings failed");
++  earlier = { id: r1.appointmentId, token: r1.token };
++  later = { id: r2.appointmentId, token: r2.token };
++  nouraId = (await apptRow(earlier.id)).patientId;
++  await book(at(12), "+966500000009", "Someone Else");
++});
++
++describe("erasing a patient", () => {
++  it("can't reach another clinic's patient", async () => {
++    expect(await patientsRepo.anonymizePatient(other, nouraId, ERASE_AT)).toEqual({ ok: false, reason: "not_found" });
++    expect((await patientRow(nouraId)).anonymizedAt).toBeNull();
++  });
++
++  it("overwrites name and phone, clears consent, and keeps the row", async () => {
++    expect(await patientsRepo.anonymizePatient(ctx, nouraId, ERASE_AT)).toEqual({ ok: true, cancelledUpcoming: 1 });
++    const p = await patientRow(nouraId);
++    expect(p).toMatchObject({ fullName: patientsRepo.ERASED_NAME, phoneE164: patientsRepo.ERASED_PHONE, consentAt: null, consentPolicyVersion: null });
++    expect(p.anonymizedAt?.getTime()).toBe(ERASE_AT);
++    expect(JSON.stringify(p)).not.toMatch(/Noura|512345678/);
++  });
++
++  it("keeps the clinic's history: past visits untouched, upcoming ones cancelled, no rows deleted", async () => {
++    expect(await apptRow(earlier.id)).toMatchObject({ status: "booked", patientId: nouraId });
++    expect(await apptRow(later.id)).toMatchObject({ status: "cancelled", cancelledBy: "staff", cancelledByUserId: ctx.userId, patientId: nouraId });
++    expect(await db.select().from(appointments).where(eq(appointments.patientId, nouraId))).toHaveLength(2);
++    // Cancelling frees the slot for the next patient.
++    expect((await book(at(11), "+966511111111", "Next Patient")).ok).toBe(true);
++  });
++
++  it("kills every private link the patient held", async () => {
++    expect(await getPatientAppointment(hashToken(earlier.token), PAST)).toBeNull();
++    expect(await getPatientAppointment(hashToken(later.token), PAST)).toBeNull();
++  });
++
++  it("audits once, with ids and counts only", async () => {
++    const events = await db.select().from(auditLog).where(and(eq(auditLog.entityId, nouraId), eq(auditLog.action, "patient.anonymized")));
++    expect(events).toHaveLength(1);
++    expect(events[0]).toMatchObject({ actorType: "member", actorUserId: ctx.userId, clinicId: ctx.clinicId });
++    expect(events[0]!.metadata).toMatchObject({ cancelledUpcoming: 1, appointmentIds: expect.arrayContaining([earlier.id, later.id]) });
++    expectNoPii(events[0]!.metadata, "Noura");
++  });
++
++  it("can't be repeated, and the record can't be given a name or number again", async () => {
++    expect(await patientsRepo.anonymizePatient(ctx, nouraId, ERASE_AT)).toEqual({ ok: false, reason: "already_anonymized" });
++    expect(await patientsRepo.updatePatient(ctx, nouraId, { fullName: "Noura Ali", phoneE164: PHONE })).toEqual({ ok: false, reason: "not_found" });
++  });
++
++  it("leaves other patients alone", async () => {
++    const [someone] = await db.select().from(patients).where(eq(patients.phoneE164, "+966500000009"));
++    expect(someone).toMatchObject({ fullName: "Someone Else", anonymizedAt: null });
++  });
++
++  it("a returning person gets a fresh record, never the erased one", async () => {
++    const r = await book(at(14), PHONE, "Noura Ali");
++    expect(r.ok).toBe(true);
++    if (!r.ok) return;
++    const fresh = (await apptRow(r.appointmentId)).patientId;
++    expect(fresh).not.toBe(nouraId);
++    expect(await patientRow(fresh)).toMatchObject({ fullName: "Noura Ali", phoneE164: PHONE, anonymizedAt: null });
++    expect((await patientRow(nouraId)).fullName).toBe(patientsRepo.ERASED_NAME);
++  });
++
++  it("several erased patients can coexist (the phone rule ignores erased records)", async () => {
++    const [someone] = await db.select({ id: patients.id }).from(patients).where(eq(patients.phoneE164, "+966500000009"));
++    expect((await patientsRepo.anonymizePatient(ctx, someone!.id, ERASE_AT)).ok).toBe(true);
++    const erased = await db.select().from(patients).where(and(eq(patients.clinicId, ctx.clinicId), eq(patients.phoneE164, patientsRepo.ERASED_PHONE)));
++    expect(erased.length).toBeGreaterThanOrEqual(2);
++  });
++
++  it("the database still refuses two live records with one phone", async () => {
++    await expect(db.insert(patients).values({ clinicId: ctx.clinicId, fullName: "Dup", phoneE164: PHONE })).rejects.toThrow();
++  });
++});
+-- 
+2.43.0
+
+
+From a3c2acf8b47fe3e40c0828b888890f7128ef3302 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 27 Nov 2026 19:58:28 +0500
+Subject: [PATCH 2/4] fix(booking): retry a deadlock between racing bookings
+ instead of failing (F4)
+
+Two transactions racing for one slot can be settled by Postgres with a
+deadlock (40P01) rather than the exclusion violation (23P01). The booking
+was safely refused either way, but the patient got a server error instead
+of "that time was just taken". Online booking, patient reschedule, staff
+booking and staff reschedule now retry a deadlocked transaction (max 3);
+the retry fails cleanly with 23P01 and the normal slot_taken path answers.
+
+Found by the race test on a local Postgres 16 (about 1 run in 6 failed);
+after the fix, 15 of 15 integration runs clean.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01NjUsEhNL3KvY6tfsuwmur8
+---
+ server/db/repositories/appointments.ts        |  9 +++--
+ server/db/repositories/clinic-appointments.ts |  9 +++--
+ server/db/retry.ts                            | 25 ++++++++++++
+ tests/retry.test.ts                           | 39 +++++++++++++++++++
+ 4 files changed, 74 insertions(+), 8 deletions(-)
+ create mode 100644 server/db/retry.ts
+ create mode 100644 tests/retry.test.ts
+
+diff --git a/server/db/repositories/appointments.ts b/server/db/repositories/appointments.ts
+index d7f959a..9b9f98b 100644
+--- a/server/db/repositories/appointments.ts
++++ b/server/db/repositories/appointments.ts
+@@ -1,4 +1,5 @@
+ import { and, eq, gt, inArray, lt, ne, sql } from "drizzle-orm";
++import { retryOnDeadlock } from "../retry";
+ import { appointments, auditLog, clinics, patients, services, staff } from "../../../db/schema";
+ import { type Database, db } from "../client";
+ import type { ClinicScope } from "./schedule";
+@@ -62,7 +63,7 @@ export async function insertOnlineBooking(
+   },
+ ): Promise<InsertBookingResult> {
+   try {
+-    return await scope.db.transaction(async (tx) => {
++    return await retryOnDeadlock(() => scope.db.transaction(async (tx) => {
+       // One record per phone per clinic. An existing record keeps its name:
+       // knowing someone's phone number must not let you rename them.
+       const [patient] = await tx
+@@ -108,7 +109,7 @@ export async function insertOnlineBooking(
+         metadata: { patientId: patient.id, staffId: input.staffId, serviceId: input.serviceId, startAt: new Date(input.startMs).toISOString(), source: "online" },
+       });
+       return { ok: true, appointmentId: appointment.id } as const;
+-    });
++    }));
+   } catch (error) {
+     if (isDoubleBooking(error)) return { ok: false, reason: "slot_taken" };
+     throw error;
+@@ -246,7 +247,7 @@ export async function moveAppointment(
+   },
+ ): Promise<MoveResult> {
+   try {
+-    return await scope.db.transaction(async (tx) => {
++    return await retryOnDeadlock(() => scope.db.transaction(async (tx) => {
+       const current = await lockAppointment(tx, scope.clinicId, input.appointmentId);
+       if (!current || current.status !== "booked" || current.icsSequence !== input.expectedSequence) {
+         return { ok: false, reason: "changed" } as const;
+@@ -276,7 +277,7 @@ export async function moveAppointment(
+         },
+       });
+       return { ok: true } as const;
+-    });
++    }));
+   } catch (error) {
+     if (isDoubleBooking(error)) return { ok: false, reason: "slot_taken" };
+     throw error;
+diff --git a/server/db/repositories/clinic-appointments.ts b/server/db/repositories/clinic-appointments.ts
+index dbe81d7..2eecc65 100644
+--- a/server/db/repositories/clinic-appointments.ts
++++ b/server/db/repositories/clinic-appointments.ts
+@@ -1,4 +1,5 @@
+ import { and, asc, eq, gte, lt, sql } from "drizzle-orm";
++import { retryOnDeadlock } from "../retry";
+ import { appointments, auditLog, patients, services, staff } from "../../../db/schema";
+ import { isDoubleBooking } from "./appointments";
+ import type { ClinicContext } from "./context";
+@@ -68,7 +69,7 @@ export async function insertStaffBooking(
+   input: { staffId: string; serviceId: string; startMs: number; endMs: number; fullName: string; phoneE164: string; accessTokenHash: string },
+ ): Promise<InsertStaffBookingResult> {
+   try {
+-    return await ctx.db.transaction(async (tx) => {
++    return await retryOnDeadlock(() => ctx.db.transaction(async (tx) => {
+       const [patient] = await tx
+         .insert(patients)
+         .values({ clinicId: ctx.clinicId, fullName: input.fullName, phoneE164: input.phoneE164 })
+@@ -107,7 +108,7 @@ export async function insertStaffBooking(
+         metadata: { patientId: patient.id, staffId: input.staffId, serviceId: input.serviceId, startAt: new Date(input.startMs).toISOString(), source: "staff" },
+       });
+       return { ok: true, appointmentId: appointment.id, patientId: patient.id } as const;
+-    });
++    }));
+   } catch (error) {
+     if (isDoubleBooking(error)) return { ok: false, reason: "slot_taken" };
+     throw error;
+@@ -216,7 +217,7 @@ export async function undoAppointmentOutcome(
+   input: { appointmentId: string; nowMs: number; allowedUntilMs: number },
+ ): Promise<UndoOutcomeResult> {
+   try {
+-    return await ctx.db.transaction(async (tx) => {
++    return await retryOnDeadlock(() => ctx.db.transaction(async (tx) => {
+       const [current] = await tx
+         .select({ status: appointments.status })
+         .from(appointments)
+@@ -242,7 +243,7 @@ export async function undoAppointmentOutcome(
+         metadata: { from: current.status, to: "booked", undo: true },
+       });
+       return { ok: true } as const;
+-    });
++    }));
+   } catch (error) {
+     if (isDoubleBooking(error)) return { ok: false, reason: "slot_taken" };
+     throw error;
+diff --git a/server/db/retry.ts b/server/db/retry.ts
+new file mode 100644
+index 0000000..c84bcf7
+--- /dev/null
++++ b/server/db/retry.ts
+@@ -0,0 +1,25 @@
++/**
++ * Postgres can settle two transactions racing for one slot with a DEADLOCK
++ * (40P01) instead of the exclusion-constraint violation (23P01): each insert
++ * waits to see whether the other's conflicting row commits. Postgres aborts one
++ * of them, and its booking is safely gone, but without this the patient got a
++ * server error instead of "that time was just taken" (finding F4, Phase 9).
++ *
++ * Retrying the aborted transaction is the standard fix: by then the winner has
++ * committed, so the retry fails cleanly with 23P01 and the caller's normal
++ * "slot taken" path answers. Only deadlocks are retried, a few times at most.
++ */
++export function isDeadlock(error: unknown) {
++  const e = ((error as { cause?: unknown })?.cause ?? error) as { code?: string };
++  return e?.code === "40P01";
++}
++
++export async function retryOnDeadlock<T>(run: () => Promise<T>, attempts = 3): Promise<T> {
++  for (let attempt = 1; ; attempt++) {
++    try {
++      return await run();
++    } catch (error) {
++      if (!isDeadlock(error) || attempt >= attempts) throw error;
++    }
++  }
++}
+diff --git a/tests/retry.test.ts b/tests/retry.test.ts
+new file mode 100644
+index 0000000..22ada05
+--- /dev/null
++++ b/tests/retry.test.ts
+@@ -0,0 +1,39 @@
++/**
++ * Finding F4: a deadlock between two racing bookings must be retried, so the
++ * loser hears "slot taken" instead of getting a server error.
++ */
++import { describe, expect, it } from "vitest";
++import { isDeadlock, retryOnDeadlock } from "@/server/db/retry";
++
++const deadlock = Object.assign(new Error("Failed query"), { cause: { code: "40P01" } });
++const overlap = Object.assign(new Error("Failed query"), { cause: { code: "23P01" } });
++
++describe("retryOnDeadlock", () => {
++  it("recognises a deadlock directly or wrapped by the driver", () => {
++    expect(isDeadlock(deadlock)).toBe(true);
++    expect(isDeadlock({ code: "40P01" })).toBe(true);
++    expect(isDeadlock(overlap)).toBe(false);
++  });
++
++  it("retries a deadlock, then hands the clean result back", async () => {
++    let calls = 0;
++    const result = await retryOnDeadlock(async () => {
++      if (++calls === 1) throw deadlock;
++      return "slot_taken";
++    });
++    expect(result).toBe("slot_taken");
++    expect(calls).toBe(2);
++  });
++
++  it("never retries other errors: they reach the caller's own handling at once", async () => {
++    let calls = 0;
++    await expect(retryOnDeadlock(async () => { calls++; throw overlap; })).rejects.toBe(overlap);
++    expect(calls).toBe(1);
++  });
++
++  it("gives up after three attempts", async () => {
++    let calls = 0;
++    await expect(retryOnDeadlock(async () => { calls++; throw deadlock; })).rejects.toBe(deadlock);
++    expect(calls).toBe(3);
++  });
++});
+-- 
+2.43.0
+
+
+From a6a3f667aff94074d6cb1bdb0c0fbef050708c6d Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 27 Nov 2026 19:58:28 +0500
+Subject: [PATCH 3/4] feat(phase-9b): the app runs as clinova_app, which can't
+ rewrite or erase the audit log
+
+0005's REVOKE didn't bind the app, because the app connected as the table
+owner. Now:
+- Migration 0009 (hand-written, idempotent, a no-op where the role doesn't
+  exist): clinova_app gets DML on every table, only SELECT/INSERT on
+  audit_log, and default privileges for future tables.
+- server/db/client.ts connects with APP_DATABASE_URL (the restricted role)
+  and falls back to DATABASE_URL until it is set. Migrations and scripts
+  keep the owner via DATABASE_URL_UNPOOLED.
+- Integration test (TEST_APP_DATABASE_URL): as clinova_app, INSERT works;
+  UPDATE, DELETE, TRUNCATE, DROP fail with 42501 and it can't grant itself
+  the rights back; other app writes still work.
+- The browser tests run the app as the restricted role when configured.
+
+Verified on the Neon test branch (role created via Neon, migration applied,
+tamper attempts refused, a full booking transaction works) and locally:
+228 unit tests, integration 15/15, browser suite 10/10 as clinova_app.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01NjUsEhNL3KvY6tfsuwmur8
+---
+ .env.example                                  |    1 +
+ db/migrations/0009_app_role_grants.sql        |   34 +
+ db/migrations/meta/0009_snapshot.json         | 2558 +++++++++++++++++
+ db/migrations/meta/_journal.json              |    7 +
+ playwright.config.ts                          |    3 +
+ server/db/client.ts                           |    6 +-
+ .../audit-append-only.integration.test.ts     |   90 +
+ vitest.integration.config.mts                 |    2 +-
+ 8 files changed, 2699 insertions(+), 2 deletions(-)
+ create mode 100644 db/migrations/0009_app_role_grants.sql
+ create mode 100644 db/migrations/meta/0009_snapshot.json
+ create mode 100644 tests/integration/audit-append-only.integration.test.ts
+
+diff --git a/.env.example b/.env.example
+index 2f41f66..2232290 100644
+--- a/.env.example
++++ b/.env.example
+@@ -1,6 +1,7 @@
+ # Phase 0
+ DATABASE_URL=                 # Neon pooled — the app
+ DATABASE_URL_UNPOOLED=        # Neon direct — migrations only
++APP_DATABASE_URL=             # Neon pooled, role clinova_app (Phase 9b) — the app uses this when set; it cannot edit or delete the audit log
+ 
+ # Phase 2 — auth
+ BETTER_AUTH_SECRET=           # node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+diff --git a/db/migrations/0009_app_role_grants.sql b/db/migrations/0009_app_role_grants.sql
+new file mode 100644
+index 0000000..8670c2b
+--- /dev/null
++++ b/db/migrations/0009_app_role_grants.sql
+@@ -0,0 +1,34 @@
++-- Hand-written (Phase 9b). Makes the audit log append-only FOR REAL.
++--
++-- 0005 revoked UPDATE/DELETE on audit_log from PUBLIC, but the app connected as
++-- the table OWNER, and an owner's rights can't be revoked that way. From now on
++-- the app connects as `clinova_app`, a role that owns nothing:
++--   * every table: SELECT, INSERT, UPDATE, DELETE (what the app does today)
++--   * audit_log:   SELECT, INSERT only. A bug, a stolen session or a bad
++--                  query can add history but can never rewrite or erase it.
++-- Migrations and scripts keep using the owner (DATABASE_URL_UNPOOLED).
++--
++-- The role itself (and its password) is created in the Neon console or API,
++-- never here: a password must not live in git. If the role doesn't exist yet
++-- (local dev, PGlite tests, a fresh branch) this migration does nothing, and
++-- re-running it after creating the role is safe.
++DO $$
++BEGIN
++  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'clinova_app') THEN
++    GRANT USAGE ON SCHEMA public TO clinova_app;
++    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO clinova_app;
++    GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO clinova_app;
++    REVOKE UPDATE, DELETE, TRUNCATE ON audit_log FROM clinova_app;
++
++    -- Tables a future migration creates get the same rights automatically.
++    -- (A future append-only table must REVOKE in its own migration, as above.)
++    EXECUTE format(
++      'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO clinova_app',
++      current_user
++    );
++    EXECUTE format(
++      'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO clinova_app',
++      current_user
++    );
++  END IF;
++END $$;
+diff --git a/db/migrations/meta/0009_snapshot.json b/db/migrations/meta/0009_snapshot.json
+new file mode 100644
+index 0000000..0597336
+--- /dev/null
++++ b/db/migrations/meta/0009_snapshot.json
+@@ -0,0 +1,2558 @@
++{
++  "id": "9bc1d44a-da8c-4cd2-bc67-ee3ca2afef85",
++  "prevId": "fd7e080f-0a5d-420f-b404-1457544c8ba8",
++  "version": "7",
++  "dialect": "postgresql",
++  "tables": {
++    "public.accounts": {
++      "name": "accounts",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "account_id": {
++          "name": "account_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "provider_id": {
++          "name": "provider_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "user_id": {
++          "name": "user_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "access_token": {
++          "name": "access_token",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "refresh_token": {
++          "name": "refresh_token",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "id_token": {
++          "name": "id_token",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "access_token_expires_at": {
++          "name": "access_token_expires_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "refresh_token_expires_at": {
++          "name": "refresh_token_expires_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "scope": {
++          "name": "scope",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "password": {
++          "name": "password",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {
++        "accounts_user_idx": {
++          "name": "accounts_user_idx",
++          "columns": [
++            {
++              "expression": "user_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "with": {},
++          "method": "btree",
++          "concurrently": false
++        }
++      },
++      "foreignKeys": {
++        "accounts_user_id_users_id_fk": {
++          "name": "accounts_user_id_users_id_fk",
++          "tableFrom": "accounts",
++          "columnsFrom": [
++            "user_id"
++          ],
++          "tableTo": "users",
++          "columnsTo": [
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "cascade"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {},
++      "isRLSEnabled": false
++    },
++    "public.appointments": {
++      "name": "appointments",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "clinic_id": {
++          "name": "clinic_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "patient_id": {
++          "name": "patient_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "staff_id": {
++          "name": "staff_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "service_id": {
++          "name": "service_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "start_at": {
++          "name": "start_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "end_at": {
++          "name": "end_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "status": {
++          "name": "status",
++          "type": "appointment_status",
++          "typeSchema": "public",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "'booked'"
++        },
++        "source": {
++          "name": "source",
++          "type": "appointment_source",
++          "typeSchema": "public",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "access_token_hash": {
++          "name": "access_token_hash",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "reschedule_count": {
++          "name": "reschedule_count",
++          "type": "smallint",
++          "primaryKey": false,
++          "notNull": true,
++          "default": 0
++        },
++        "ics_sequence": {
++          "name": "ics_sequence",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "default": 0
++        },
++        "cancelled_at": {
++          "name": "cancelled_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "cancelled_by": {
++          "name": "cancelled_by",
++          "type": "cancelled_by",
++          "typeSchema": "public",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "cancelled_by_user_id": {
++          "name": "cancelled_by_user_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "status_updated_at": {
++          "name": "status_updated_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "created_by_user_id": {
++          "name": "created_by_user_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {
++        "appointments_token_key": {
++          "name": "appointments_token_key",
++          "columns": [
++            {
++              "expression": "access_token_hash",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": true,
++          "with": {},
++          "method": "btree",
++          "concurrently": false
++        },
++        "appointments_clinic_start_idx": {
++          "name": "appointments_clinic_start_idx",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "start_at",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "with": {},
++          "method": "btree",
++          "concurrently": false
++        },
++        "appointments_staff_start_idx": {
++          "name": "appointments_staff_start_idx",
++          "columns": [
++            {
++              "expression": "staff_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "start_at",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "with": {},
++          "method": "btree",
++          "where": "\"appointments\".\"status\" IN ('booked', 'completed')",
++          "concurrently": false
++        },
++        "appointments_patient_idx": {
++          "name": "appointments_patient_idx",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "patient_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "start_at",
++              "isExpression": false,
++              "asc": false,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "with": {},
++          "method": "btree",
++          "concurrently": false
++        }
++      },
++      "foreignKeys": {
++        "appointments_clinic_id_clinics_id_fk": {
++          "name": "appointments_clinic_id_clinics_id_fk",
++          "tableFrom": "appointments",
++          "columnsFrom": [
++            "clinic_id"
++          ],
++          "tableTo": "clinics",
++          "columnsTo": [
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "restrict"
++        },
++        "appointments_cancelled_by_user_id_users_id_fk": {
++          "name": "appointments_cancelled_by_user_id_users_id_fk",
++          "tableFrom": "appointments",
++          "columnsFrom": [
++            "cancelled_by_user_id"
++          ],
++          "tableTo": "users",
++          "columnsTo": [
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "set null"
++        },
++        "appointments_created_by_user_id_users_id_fk": {
++          "name": "appointments_created_by_user_id_users_id_fk",
++          "tableFrom": "appointments",
++          "columnsFrom": [
++            "created_by_user_id"
++          ],
++          "tableTo": "users",
++          "columnsTo": [
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "set null"
++        },
++        "appointments_patient_fk": {
++          "name": "appointments_patient_fk",
++          "tableFrom": "appointments",
++          "columnsFrom": [
++            "clinic_id",
++            "patient_id"
++          ],
++          "tableTo": "patients",
++          "columnsTo": [
++            "clinic_id",
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "restrict"
++        },
++        "appointments_staff_fk": {
++          "name": "appointments_staff_fk",
++          "tableFrom": "appointments",
++          "columnsFrom": [
++            "clinic_id",
++            "staff_id"
++          ],
++          "tableTo": "staff",
++          "columnsTo": [
++            "clinic_id",
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "restrict"
++        },
++        "appointments_service_fk": {
++          "name": "appointments_service_fk",
++          "tableFrom": "appointments",
++          "columnsFrom": [
++            "clinic_id",
++            "service_id"
++          ],
++          "tableTo": "services",
++          "columnsTo": [
++            "clinic_id",
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "restrict"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {
++        "appointments_time_order": {
++          "name": "appointments_time_order",
++          "value": "\"appointments\".\"end_at\" > \"appointments\".\"start_at\""
++        },
++        "appointments_reschedule_nonneg": {
++          "name": "appointments_reschedule_nonneg",
++          "value": "\"appointments\".\"reschedule_count\" >= 0"
++        },
++        "appointments_cancel_consistency": {
++          "name": "appointments_cancel_consistency",
++          "value": "(\"appointments\".\"status\" = 'cancelled' AND \"appointments\".\"cancelled_at\" IS NOT NULL AND \"appointments\".\"cancelled_by\" IS NOT NULL) OR (\"appointments\".\"status\" <> 'cancelled' AND \"appointments\".\"cancelled_at\" IS NULL)"
++        }
++      },
++      "isRLSEnabled": false
++    },
++    "public.audit_log": {
++      "name": "audit_log",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "bigserial",
++          "primaryKey": true,
++          "notNull": true
++        },
++        "clinic_id": {
++          "name": "clinic_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "actor_type": {
++          "name": "actor_type",
++          "type": "actor_type",
++          "typeSchema": "public",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "actor_user_id": {
++          "name": "actor_user_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "action": {
++          "name": "action",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "entity_type": {
++          "name": "entity_type",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "entity_id": {
++          "name": "entity_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "metadata": {
++          "name": "metadata",
++          "type": "jsonb",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "ip_hash": {
++          "name": "ip_hash",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {
++        "audit_log_clinic_time_idx": {
++          "name": "audit_log_clinic_time_idx",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "created_at",
++              "isExpression": false,
++              "asc": false,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "with": {},
++          "method": "btree",
++          "concurrently": false
++        },
++        "audit_log_entity_idx": {
++          "name": "audit_log_entity_idx",
++          "columns": [
++            {
++              "expression": "entity_type",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "entity_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "created_at",
++              "isExpression": false,
++              "asc": false,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "with": {},
++          "method": "btree",
++          "concurrently": false
++        }
++      },
++      "foreignKeys": {
++        "audit_log_clinic_id_clinics_id_fk": {
++          "name": "audit_log_clinic_id_clinics_id_fk",
++          "tableFrom": "audit_log",
++          "columnsFrom": [
++            "clinic_id"
++          ],
++          "tableTo": "clinics",
++          "columnsTo": [
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "set null"
++        },
++        "audit_log_actor_user_id_users_id_fk": {
++          "name": "audit_log_actor_user_id_users_id_fk",
++          "tableFrom": "audit_log",
++          "columnsFrom": [
++            "actor_user_id"
++          ],
++          "tableTo": "users",
++          "columnsTo": [
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "set null"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {},
++      "isRLSEnabled": false
++    },
++    "public.clinic_hours": {
++      "name": "clinic_hours",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "clinic_id": {
++          "name": "clinic_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "day_of_week": {
++          "name": "day_of_week",
++          "type": "smallint",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "start_minute": {
++          "name": "start_minute",
++          "type": "smallint",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "end_minute": {
++          "name": "end_minute",
++          "type": "smallint",
++          "primaryKey": false,
++          "notNull": true
++        }
++      },
++      "indexes": {
++        "clinic_hours_clinic_day_idx": {
++          "name": "clinic_hours_clinic_day_idx",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "day_of_week",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "with": {},
++          "method": "btree",
++          "concurrently": false
++        }
++      },
++      "foreignKeys": {
++        "clinic_hours_clinic_id_clinics_id_fk": {
++          "name": "clinic_hours_clinic_id_clinics_id_fk",
++          "tableFrom": "clinic_hours",
++          "columnsFrom": [
++            "clinic_id"
++          ],
++          "tableTo": "clinics",
++          "columnsTo": [
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "cascade"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {
++        "clinic_hours_dow": {
++          "name": "clinic_hours_dow",
++          "value": "\"clinic_hours\".\"day_of_week\" BETWEEN 0 AND 6"
++        },
++        "clinic_hours_bounds": {
++          "name": "clinic_hours_bounds",
++          "value": "\"clinic_hours\".\"start_minute\" >= 0 AND \"clinic_hours\".\"end_minute\" <= 1440 AND \"clinic_hours\".\"start_minute\" < \"clinic_hours\".\"end_minute\""
++        }
++      },
++      "isRLSEnabled": false
++    },
++    "public.clinic_members": {
++      "name": "clinic_members",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "clinic_id": {
++          "name": "clinic_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "user_id": {
++          "name": "user_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "role": {
++          "name": "role",
++          "type": "clinic_role",
++          "typeSchema": "public",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "is_active": {
++          "name": "is_active",
++          "type": "boolean",
++          "primaryKey": false,
++          "notNull": true,
++          "default": true
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {
++        "clinic_members_clinic_user_key": {
++          "name": "clinic_members_clinic_user_key",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "user_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": true,
++          "with": {},
++          "method": "btree",
++          "concurrently": false
++        },
++        "clinic_members_user_idx": {
++          "name": "clinic_members_user_idx",
++          "columns": [
++            {
++              "expression": "user_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "with": {},
++          "method": "btree",
++          "concurrently": false
++        }
++      },
++      "foreignKeys": {
++        "clinic_members_clinic_id_clinics_id_fk": {
++          "name": "clinic_members_clinic_id_clinics_id_fk",
++          "tableFrom": "clinic_members",
++          "columnsFrom": [
++            "clinic_id"
++          ],
++          "tableTo": "clinics",
++          "columnsTo": [
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "cascade"
++        },
++        "clinic_members_user_id_users_id_fk": {
++          "name": "clinic_members_user_id_users_id_fk",
++          "tableFrom": "clinic_members",
++          "columnsFrom": [
++            "user_id"
++          ],
++          "tableTo": "users",
++          "columnsTo": [
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "cascade"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {},
++      "isRLSEnabled": false
++    },
++    "public.clinics": {
++      "name": "clinics",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "slug": {
++          "name": "slug",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "name_en": {
++          "name": "name_en",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "name_ar": {
++          "name": "name_ar",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "address_en": {
++          "name": "address_en",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "address_ar": {
++          "name": "address_ar",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "phone": {
++          "name": "phone",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "maps_url": {
++          "name": "maps_url",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "timezone": {
++          "name": "timezone",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "'Asia/Riyadh'"
++        },
++        "clinic_type": {
++          "name": "clinic_type",
++          "type": "clinic_type",
++          "typeSchema": "public",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "'dental'"
++        },
++        "status": {
++          "name": "status",
++          "type": "clinic_status",
++          "typeSchema": "public",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "'trial'"
++        },
++        "trial_ends_at": {
++          "name": "trial_ends_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "booking_enabled": {
++          "name": "booking_enabled",
++          "type": "boolean",
++          "primaryKey": false,
++          "notNull": true,
++          "default": false
++        },
++        "buffer_minutes": {
++          "name": "buffer_minutes",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "default": 0
++        },
++        "min_lead_minutes": {
++          "name": "min_lead_minutes",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "default": 120
++        },
++        "max_horizon_days": {
++          "name": "max_horizon_days",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "default": 60
++        },
++        "change_cutoff_minutes": {
++          "name": "change_cutoff_minutes",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "default": 120
++        },
++        "slot_granularity_minutes": {
++          "name": "slot_granularity_minutes",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "default": 15
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {
++        "clinics_slug_key": {
++          "name": "clinics_slug_key",
++          "columns": [
++            {
++              "expression": "slug",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": true,
++          "with": {},
++          "method": "btree",
++          "concurrently": false
++        }
++      },
++      "foreignKeys": {},
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {
++        "clinics_slug_format": {
++          "name": "clinics_slug_format",
++          "value": "\"clinics\".\"slug\" ~ '^[a-z0-9]+(-[a-z0-9]+)*$'"
++        },
++        "clinics_buffer_range": {
++          "name": "clinics_buffer_range",
++          "value": "\"clinics\".\"buffer_minutes\" BETWEEN 0 AND 120"
++        },
++        "clinics_lead_range": {
++          "name": "clinics_lead_range",
++          "value": "\"clinics\".\"min_lead_minutes\" BETWEEN 0 AND 20160"
++        },
++        "clinics_horizon_range": {
++          "name": "clinics_horizon_range",
++          "value": "\"clinics\".\"max_horizon_days\" BETWEEN 1 AND 365"
++        },
++        "clinics_cutoff_range": {
++          "name": "clinics_cutoff_range",
++          "value": "\"clinics\".\"change_cutoff_minutes\" BETWEEN 0 AND 20160"
++        },
++        "clinics_granularity_allowed": {
++          "name": "clinics_granularity_allowed",
++          "value": "\"clinics\".\"slot_granularity_minutes\" IN (5, 10, 15, 20, 30, 60)"
++        }
++      },
++      "isRLSEnabled": false
++    },
++    "public.invites": {
++      "name": "invites",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "clinic_id": {
++          "name": "clinic_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "email": {
++          "name": "email",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "role": {
++          "name": "role",
++          "type": "clinic_role",
++          "typeSchema": "public",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "token_hash": {
++          "name": "token_hash",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "expires_at": {
++          "name": "expires_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "accepted_at": {
++          "name": "accepted_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "accepted_by_user_id": {
++          "name": "accepted_by_user_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "invited_by_user_id": {
++          "name": "invited_by_user_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {
++        "invites_token_hash_key": {
++          "name": "invites_token_hash_key",
++          "columns": [
++            {
++              "expression": "token_hash",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": true,
++          "with": {},
++          "method": "btree",
++          "concurrently": false
++        },
++        "invites_pending_key": {
++          "name": "invites_pending_key",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "lower(\"email\")",
++              "isExpression": true,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": true,
++          "with": {},
++          "method": "btree",
++          "where": "\"invites\".\"accepted_at\" IS NULL",
++          "concurrently": false
++        }
++      },
++      "foreignKeys": {
++        "invites_clinic_id_clinics_id_fk": {
++          "name": "invites_clinic_id_clinics_id_fk",
++          "tableFrom": "invites",
++          "columnsFrom": [
++            "clinic_id"
++          ],
++          "tableTo": "clinics",
++          "columnsTo": [
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "cascade"
++        },
++        "invites_accepted_by_user_id_users_id_fk": {
++          "name": "invites_accepted_by_user_id_users_id_fk",
++          "tableFrom": "invites",
++          "columnsFrom": [
++            "accepted_by_user_id"
++          ],
++          "tableTo": "users",
++          "columnsTo": [
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "set null"
++        },
++        "invites_invited_by_user_id_users_id_fk": {
++          "name": "invites_invited_by_user_id_users_id_fk",
++          "tableFrom": "invites",
++          "columnsFrom": [
++            "invited_by_user_id"
++          ],
++          "tableTo": "users",
++          "columnsTo": [
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "set null"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {},
++      "isRLSEnabled": false
++    },
++    "public.notification_runs": {
++      "name": "notification_runs",
++      "schema": "",
++      "columns": {
++        "clinic_id": {
++          "name": "clinic_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "kind": {
++          "name": "kind",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "run_key": {
++          "name": "run_key",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {},
++      "foreignKeys": {
++        "notification_runs_clinic_id_clinics_id_fk": {
++          "name": "notification_runs_clinic_id_clinics_id_fk",
++          "tableFrom": "notification_runs",
++          "columnsFrom": [
++            "clinic_id"
++          ],
++          "tableTo": "clinics",
++          "columnsTo": [
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "cascade"
++        }
++      },
++      "compositePrimaryKeys": {
++        "notification_runs_clinic_id_kind_run_key_pk": {
++          "name": "notification_runs_clinic_id_kind_run_key_pk",
++          "columns": [
++            "clinic_id",
++            "kind",
++            "run_key"
++          ]
++        }
++      },
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {},
++      "isRLSEnabled": false
++    },
++    "public.patients": {
++      "name": "patients",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "clinic_id": {
++          "name": "clinic_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "full_name": {
++          "name": "full_name",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "phone_e164": {
++          "name": "phone_e164",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "consent_at": {
++          "name": "consent_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "consent_policy_version": {
++          "name": "consent_policy_version",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "anonymized_at": {
++          "name": "anonymized_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {
++        "patients_clinic_phone_key": {
++          "name": "patients_clinic_phone_key",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "phone_e164",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": true,
++          "with": {},
++          "method": "btree",
++          "where": "\"patients\".\"anonymized_at\" IS NULL",
++          "concurrently": false
++        },
++        "patients_clinic_id_key": {
++          "name": "patients_clinic_id_key",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": true,
++          "with": {},
++          "method": "btree",
++          "concurrently": false
++        }
++      },
++      "foreignKeys": {
++        "patients_clinic_id_clinics_id_fk": {
++          "name": "patients_clinic_id_clinics_id_fk",
++          "tableFrom": "patients",
++          "columnsFrom": [
++            "clinic_id"
++          ],
++          "tableTo": "clinics",
++          "columnsTo": [
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "cascade"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {
++        "patients_phone_e164": {
++          "name": "patients_phone_e164",
++          "value": "\"patients\".\"phone_e164\" ~ '^\\+[1-9][0-9]{7,14}$'"
++        }
++      },
++      "isRLSEnabled": false
++    },
++    "public.platform_admins": {
++      "name": "platform_admins",
++      "schema": "",
++      "columns": {
++        "user_id": {
++          "name": "user_id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true
++        },
++        "granted_at": {
++          "name": "granted_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "granted_by_user_id": {
++          "name": "granted_by_user_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": false
++        }
++      },
++      "indexes": {},
++      "foreignKeys": {
++        "platform_admins_user_id_users_id_fk": {
++          "name": "platform_admins_user_id_users_id_fk",
++          "tableFrom": "platform_admins",
++          "columnsFrom": [
++            "user_id"
++          ],
++          "tableTo": "users",
++          "columnsTo": [
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "cascade"
++        },
++        "platform_admins_granted_by_user_id_users_id_fk": {
++          "name": "platform_admins_granted_by_user_id_users_id_fk",
++          "tableFrom": "platform_admins",
++          "columnsFrom": [
++            "granted_by_user_id"
++          ],
++          "tableTo": "users",
++          "columnsTo": [
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "set null"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {},
++      "isRLSEnabled": false
++    },
++    "public.rate_limits": {
++      "name": "rate_limits",
++      "schema": "",
++      "columns": {
++        "bucket": {
++          "name": "bucket",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "identifier_hash": {
++          "name": "identifier_hash",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "window_start": {
++          "name": "window_start",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "count": {
++          "name": "count",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "default": 0
++        }
++      },
++      "indexes": {
++        "rate_limits_window_idx": {
++          "name": "rate_limits_window_idx",
++          "columns": [
++            {
++              "expression": "window_start",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "with": {},
++          "method": "btree",
++          "concurrently": false
++        }
++      },
++      "foreignKeys": {},
++      "compositePrimaryKeys": {
++        "rate_limits_bucket_identifier_hash_window_start_pk": {
++          "name": "rate_limits_bucket_identifier_hash_window_start_pk",
++          "columns": [
++            "bucket",
++            "identifier_hash",
++            "window_start"
++          ]
++        }
++      },
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {
++        "rate_limits_count_positive": {
++          "name": "rate_limits_count_positive",
++          "value": "\"rate_limits\".\"count\" > 0"
++        }
++      },
++      "isRLSEnabled": false
++    },
++    "public.schedule_override_intervals": {
++      "name": "schedule_override_intervals",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "override_id": {
++          "name": "override_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "start_minute": {
++          "name": "start_minute",
++          "type": "smallint",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "end_minute": {
++          "name": "end_minute",
++          "type": "smallint",
++          "primaryKey": false,
++          "notNull": true
++        }
++      },
++      "indexes": {
++        "schedule_override_intervals_override_idx": {
++          "name": "schedule_override_intervals_override_idx",
++          "columns": [
++            {
++              "expression": "override_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "with": {},
++          "method": "btree",
++          "concurrently": false
++        }
++      },
++      "foreignKeys": {
++        "schedule_override_intervals_override_id_schedule_overrides_id_fk": {
++          "name": "schedule_override_intervals_override_id_schedule_overrides_id_fk",
++          "tableFrom": "schedule_override_intervals",
++          "columnsFrom": [
++            "override_id"
++          ],
++          "tableTo": "schedule_overrides",
++          "columnsTo": [
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "cascade"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {
++        "schedule_override_intervals_bounds": {
++          "name": "schedule_override_intervals_bounds",
++          "value": "\"schedule_override_intervals\".\"start_minute\" >= 0 AND \"schedule_override_intervals\".\"end_minute\" <= 1440 AND \"schedule_override_intervals\".\"start_minute\" < \"schedule_override_intervals\".\"end_minute\""
++        }
++      },
++      "isRLSEnabled": false
++    },
++    "public.schedule_overrides": {
++      "name": "schedule_overrides",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "clinic_id": {
++          "name": "clinic_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "staff_id": {
++          "name": "staff_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "start_date": {
++          "name": "start_date",
++          "type": "date",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "end_date": {
++          "name": "end_date",
++          "type": "date",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "type": {
++          "name": "type",
++          "type": "override_type",
++          "typeSchema": "public",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "label_en": {
++          "name": "label_en",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "label_ar": {
++          "name": "label_ar",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {
++        "schedule_overrides_lookup_idx": {
++          "name": "schedule_overrides_lookup_idx",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "start_date",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "end_date",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "with": {},
++          "method": "btree",
++          "concurrently": false
++        }
++      },
++      "foreignKeys": {
++        "schedule_overrides_clinic_id_clinics_id_fk": {
++          "name": "schedule_overrides_clinic_id_clinics_id_fk",
++          "tableFrom": "schedule_overrides",
++          "columnsFrom": [
++            "clinic_id"
++          ],
++          "tableTo": "clinics",
++          "columnsTo": [
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "cascade"
++        },
++        "schedule_overrides_staff_fk": {
++          "name": "schedule_overrides_staff_fk",
++          "tableFrom": "schedule_overrides",
++          "columnsFrom": [
++            "clinic_id",
++            "staff_id"
++          ],
++          "tableTo": "staff",
++          "columnsTo": [
++            "clinic_id",
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "cascade"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {
++        "schedule_overrides_date_order": {
++          "name": "schedule_overrides_date_order",
++          "value": "\"schedule_overrides\".\"start_date\" <= \"schedule_overrides\".\"end_date\""
++        }
++      },
++      "isRLSEnabled": false
++    },
++    "public.services": {
++      "name": "services",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "clinic_id": {
++          "name": "clinic_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "name_en": {
++          "name": "name_en",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "name_ar": {
++          "name": "name_ar",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "description_en": {
++          "name": "description_en",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "description_ar": {
++          "name": "description_ar",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "duration_minutes": {
++          "name": "duration_minutes",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "price_minor": {
++          "name": "price_minor",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "is_active": {
++          "name": "is_active",
++          "type": "boolean",
++          "primaryKey": false,
++          "notNull": true,
++          "default": true
++        },
++        "sort_order": {
++          "name": "sort_order",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "default": 0
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {
++        "services_clinic_active_idx": {
++          "name": "services_clinic_active_idx",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "is_active",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "with": {},
++          "method": "btree",
++          "concurrently": false
++        },
++        "services_clinic_id_key": {
++          "name": "services_clinic_id_key",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": true,
++          "with": {},
++          "method": "btree",
++          "concurrently": false
++        }
++      },
++      "foreignKeys": {
++        "services_clinic_id_clinics_id_fk": {
++          "name": "services_clinic_id_clinics_id_fk",
++          "tableFrom": "services",
++          "columnsFrom": [
++            "clinic_id"
++          ],
++          "tableTo": "clinics",
++          "columnsTo": [
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "cascade"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {
++        "services_duration_range": {
++          "name": "services_duration_range",
++          "value": "\"services\".\"duration_minutes\" BETWEEN 5 AND 480"
++        },
++        "services_duration_step": {
++          "name": "services_duration_step",
++          "value": "\"services\".\"duration_minutes\" % 5 = 0"
++        },
++        "services_price_nonneg": {
++          "name": "services_price_nonneg",
++          "value": "\"services\".\"price_minor\" IS NULL OR \"services\".\"price_minor\" >= 0"
++        }
++      },
++      "isRLSEnabled": false
++    },
++    "public.sessions": {
++      "name": "sessions",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "expires_at": {
++          "name": "expires_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "token": {
++          "name": "token",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "ip_address": {
++          "name": "ip_address",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "user_agent": {
++          "name": "user_agent",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "user_id": {
++          "name": "user_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        }
++      },
++      "indexes": {
++        "sessions_user_idx": {
++          "name": "sessions_user_idx",
++          "columns": [
++            {
++              "expression": "user_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "with": {},
++          "method": "btree",
++          "concurrently": false
++        }
++      },
++      "foreignKeys": {
++        "sessions_user_id_users_id_fk": {
++          "name": "sessions_user_id_users_id_fk",
++          "tableFrom": "sessions",
++          "columnsFrom": [
++            "user_id"
++          ],
++          "tableTo": "users",
++          "columnsTo": [
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "cascade"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {
++        "sessions_token_unique": {
++          "name": "sessions_token_unique",
++          "columns": [
++            "token"
++          ],
++          "nullsNotDistinct": false
++        }
++      },
++      "policies": {},
++      "checkConstraints": {},
++      "isRLSEnabled": false
++    },
++    "public.staff": {
++      "name": "staff",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "clinic_id": {
++          "name": "clinic_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "user_id": {
++          "name": "user_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "display_name_en": {
++          "name": "display_name_en",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "display_name_ar": {
++          "name": "display_name_ar",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "title_en": {
++          "name": "title_en",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "title_ar": {
++          "name": "title_ar",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "is_active": {
++          "name": "is_active",
++          "type": "boolean",
++          "primaryKey": false,
++          "notNull": true,
++          "default": true
++        },
++        "sort_order": {
++          "name": "sort_order",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "default": 0
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {
++        "staff_clinic_active_idx": {
++          "name": "staff_clinic_active_idx",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "is_active",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "with": {},
++          "method": "btree",
++          "concurrently": false
++        },
++        "staff_clinic_id_key": {
++          "name": "staff_clinic_id_key",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": true,
++          "with": {},
++          "method": "btree",
++          "concurrently": false
++        },
++        "staff_clinic_user_key": {
++          "name": "staff_clinic_user_key",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "user_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": true,
++          "with": {},
++          "method": "btree",
++          "concurrently": false
++        }
++      },
++      "foreignKeys": {
++        "staff_clinic_id_clinics_id_fk": {
++          "name": "staff_clinic_id_clinics_id_fk",
++          "tableFrom": "staff",
++          "columnsFrom": [
++            "clinic_id"
++          ],
++          "tableTo": "clinics",
++          "columnsTo": [
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "cascade"
++        },
++        "staff_user_id_users_id_fk": {
++          "name": "staff_user_id_users_id_fk",
++          "tableFrom": "staff",
++          "columnsFrom": [
++            "user_id"
++          ],
++          "tableTo": "users",
++          "columnsTo": [
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "set null"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {},
++      "isRLSEnabled": false
++    },
++    "public.staff_hours": {
++      "name": "staff_hours",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "clinic_id": {
++          "name": "clinic_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "staff_id": {
++          "name": "staff_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "day_of_week": {
++          "name": "day_of_week",
++          "type": "smallint",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "start_minute": {
++          "name": "start_minute",
++          "type": "smallint",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "end_minute": {
++          "name": "end_minute",
++          "type": "smallint",
++          "primaryKey": false,
++          "notNull": true
++        }
++      },
++      "indexes": {
++        "staff_hours_staff_day_idx": {
++          "name": "staff_hours_staff_day_idx",
++          "columns": [
++            {
++              "expression": "staff_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "day_of_week",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "with": {},
++          "method": "btree",
++          "concurrently": false
++        }
++      },
++      "foreignKeys": {
++        "staff_hours_clinic_id_clinics_id_fk": {
++          "name": "staff_hours_clinic_id_clinics_id_fk",
++          "tableFrom": "staff_hours",
++          "columnsFrom": [
++            "clinic_id"
++          ],
++          "tableTo": "clinics",
++          "columnsTo": [
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "cascade"
++        },
++        "staff_hours_staff_fk": {
++          "name": "staff_hours_staff_fk",
++          "tableFrom": "staff_hours",
++          "columnsFrom": [
++            "clinic_id",
++            "staff_id"
++          ],
++          "tableTo": "staff",
++          "columnsTo": [
++            "clinic_id",
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "cascade"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {
++        "staff_hours_dow": {
++          "name": "staff_hours_dow",
++          "value": "\"staff_hours\".\"day_of_week\" BETWEEN 0 AND 6"
++        },
++        "staff_hours_bounds": {
++          "name": "staff_hours_bounds",
++          "value": "\"staff_hours\".\"start_minute\" >= 0 AND \"staff_hours\".\"end_minute\" <= 1440 AND \"staff_hours\".\"start_minute\" < \"staff_hours\".\"end_minute\""
++        }
++      },
++      "isRLSEnabled": false
++    },
++    "public.staff_services": {
++      "name": "staff_services",
++      "schema": "",
++      "columns": {
++        "clinic_id": {
++          "name": "clinic_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "staff_id": {
++          "name": "staff_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "service_id": {
++          "name": "service_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        }
++      },
++      "indexes": {
++        "staff_services_service_idx": {
++          "name": "staff_services_service_idx",
++          "columns": [
++            {
++              "expression": "clinic_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "service_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "with": {},
++          "method": "btree",
++          "concurrently": false
++        }
++      },
++      "foreignKeys": {
++        "staff_services_clinic_id_clinics_id_fk": {
++          "name": "staff_services_clinic_id_clinics_id_fk",
++          "tableFrom": "staff_services",
++          "columnsFrom": [
++            "clinic_id"
++          ],
++          "tableTo": "clinics",
++          "columnsTo": [
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "cascade"
++        },
++        "staff_services_staff_fk": {
++          "name": "staff_services_staff_fk",
++          "tableFrom": "staff_services",
++          "columnsFrom": [
++            "clinic_id",
++            "staff_id"
++          ],
++          "tableTo": "staff",
++          "columnsTo": [
++            "clinic_id",
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "cascade"
++        },
++        "staff_services_service_fk": {
++          "name": "staff_services_service_fk",
++          "tableFrom": "staff_services",
++          "columnsFrom": [
++            "clinic_id",
++            "service_id"
++          ],
++          "tableTo": "services",
++          "columnsTo": [
++            "clinic_id",
++            "id"
++          ],
++          "onUpdate": "no action",
++          "onDelete": "cascade"
++        }
++      },
++      "compositePrimaryKeys": {
++        "staff_services_staff_id_service_id_pk": {
++          "name": "staff_services_staff_id_service_id_pk",
++          "columns": [
++            "staff_id",
++            "service_id"
++          ]
++        }
++      },
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {},
++      "isRLSEnabled": false
++    },
++    "public.users": {
++      "name": "users",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "name": {
++          "name": "name",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "email": {
++          "name": "email",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "email_verified": {
++          "name": "email_verified",
++          "type": "boolean",
++          "primaryKey": false,
++          "notNull": true,
++          "default": false
++        },
++        "image": {
++          "name": "image",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {},
++      "foreignKeys": {},
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {
++        "users_email_unique": {
++          "name": "users_email_unique",
++          "columns": [
++            "email"
++          ],
++          "nullsNotDistinct": false
++        }
++      },
++      "policies": {},
++      "checkConstraints": {},
++      "isRLSEnabled": false
++    },
++    "public.verifications": {
++      "name": "verifications",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "identifier": {
++          "name": "identifier",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "value": {
++          "name": "value",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "expires_at": {
++          "name": "expires_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {
++        "verifications_identifier_idx": {
++          "name": "verifications_identifier_idx",
++          "columns": [
++            {
++              "expression": "identifier",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "with": {},
++          "method": "btree",
++          "concurrently": false
++        }
++      },
++      "foreignKeys": {},
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {},
++      "isRLSEnabled": false
++    }
++  },
++  "enums": {
++    "public.actor_type": {
++      "name": "actor_type",
++      "schema": "public",
++      "values": [
++        "patient",
++        "member",
++        "platform_admin",
++        "system"
++      ]
++    },
++    "public.appointment_source": {
++      "name": "appointment_source",
++      "schema": "public",
++      "values": [
++        "online",
++        "staff"
++      ]
++    },
++    "public.appointment_status": {
++      "name": "appointment_status",
++      "schema": "public",
++      "values": [
++        "booked",
++        "completed",
++        "cancelled",
++        "no_show"
++      ]
++    },
++    "public.cancelled_by": {
++      "name": "cancelled_by",
++      "schema": "public",
++      "values": [
++        "patient",
++        "staff"
++      ]
++    },
++    "public.clinic_role": {
++      "name": "clinic_role",
++      "schema": "public",
++      "values": [
++        "clinic_owner",
++        "clinic_staff"
++      ]
++    },
++    "public.clinic_status": {
++      "name": "clinic_status",
++      "schema": "public",
++      "values": [
++        "trial",
++        "active",
++        "suspended"
++      ]
++    },
++    "public.clinic_type": {
++      "name": "clinic_type",
++      "schema": "public",
++      "values": [
++        "dental"
++      ]
++    },
++    "public.override_type": {
++      "name": "override_type",
++      "schema": "public",
++      "values": [
++        "closed",
++        "custom_hours"
++      ]
++    }
++  },
++  "schemas": {},
++  "views": {},
++  "sequences": {},
++  "roles": {},
++  "policies": {},
++  "_meta": {
++    "columns": {},
++    "schemas": {},
++    "tables": {}
++  }
++}
+\ No newline at end of file
+diff --git a/db/migrations/meta/_journal.json b/db/migrations/meta/_journal.json
+index f1af662..6f32d42 100644
+--- a/db/migrations/meta/_journal.json
++++ b/db/migrations/meta/_journal.json
+@@ -64,6 +64,13 @@
+       "when": 1795790444555,
+       "tag": "0008_patient_erasure",
+       "breakpoints": true
++    },
++    {
++      "idx": 9,
++      "version": "7",
++      "when": 1795791091976,
++      "tag": "0009_app_role_grants",
++      "breakpoints": true
+     }
+   ]
+ }
+\ No newline at end of file
+diff --git a/playwright.config.ts b/playwright.config.ts
+index e8b5bdc..a4d5a71 100644
+--- a/playwright.config.ts
++++ b/playwright.config.ts
+@@ -63,6 +63,9 @@ export default defineConfig({
+       // Process env wins over .env.local inside Next, so these override it.
+       DATABASE_URL: testDb,
+       DATABASE_URL_UNPOOLED: testDb,
++      // Run the app as the restricted role when it's configured, exactly as
++      // production does (Phase 9b). Seeding and cleanup stay on the owner.
++      APP_DATABASE_URL: process.env.TEST_APP_DATABASE_URL || testDb,
+       BETTER_AUTH_URL: BASE_URL,
+       BETTER_AUTH_SECRET: local.BETTER_AUTH_SECRET || "e2e-only-secret-0123456789-abcdefghij",
+       // No real email from tests, ever.
+diff --git a/server/db/client.ts b/server/db/client.ts
+index 81cf163..8bde3ad 100644
+--- a/server/db/client.ts
++++ b/server/db/client.ts
+@@ -38,7 +38,11 @@ function withStrictSsl(url: string | undefined) {
+  * unaffected — drizzle-kit connects with DATABASE_URL_UNPOOLED, not this pool.
+  */
+ const pool = new Pool({
+-  connectionString: withStrictSsl(process.env.DATABASE_URL),
++  // APP_DATABASE_URL is the non-owner `clinova_app` role (Phase 9b): it can't
++  // rewrite or erase the audit log. DATABASE_URL (the owner, managed by the
++  // Vercel–Neon integration) is only the fallback until that variable is set;
++  // migrations and scripts always use DATABASE_URL_UNPOOLED, the owner.
++  connectionString: withStrictSsl(process.env.APP_DATABASE_URL || process.env.DATABASE_URL),
+   max: 5, // per function instance; PgBouncer multiplexes behind it
+   // Waiting for a usable connection.
+   connectionTimeoutMillis: 5_000,
+diff --git a/tests/integration/audit-append-only.integration.test.ts b/tests/integration/audit-append-only.integration.test.ts
+new file mode 100644
+index 0000000..99e4321
+--- /dev/null
++++ b/tests/integration/audit-append-only.integration.test.ts
+@@ -0,0 +1,90 @@
++/**
++ * Phase 9b: the audit log is append-only for the role the app runs as.
++ *
++ * Connects as `clinova_app` (TEST_APP_DATABASE_URL in .env.test, the Neon
++ * `test` branch) and proves it can add history but never rewrite or erase it,
++ * while ordinary app writes still work. Every write here is rolled back.
++ */
++import { afterAll, describe, expect, it } from "vitest";
++import pg from "pg";
++
++const url = process.env.TEST_APP_DATABASE_URL;
++if (!url) {
++  throw new Error("TEST_APP_DATABASE_URL is not set. Put the Neon `test` branch URL for role clinova_app in .env.test.");
++}
++const forbidden = [process.env.DATABASE_URL, process.env.DATABASE_URL_UNPOOLED, process.env.APP_DATABASE_URL].filter(Boolean) as string[];
++if (forbidden.some((u) => new URL(u).hostname.replace("-pooler", "") === new URL(url).hostname.replace("-pooler", ""))) {
++  throw new Error("TEST_APP_DATABASE_URL points at the app's own database. Refusing to run.");
++}
++
++const u = new URL(url);
++u.searchParams.set("sslmode", "verify-full");
++const pool = new pg.Pool({ connectionString: u.toString(), max: 2, connectionTimeoutMillis: 20_000 });
++afterAll(() => pool.end());
++
++/** Runs fn in a transaction that is always rolled back; returns the Postgres error code, if any. */
++async function attempt(fn: (c: pg.PoolClient) => Promise<unknown>) {
++  const c = await pool.connect();
++  try {
++    await c.query("BEGIN");
++    await fn(c);
++    return null;
++  } catch (e) {
++    return (e as { code?: string }).code ?? "unknown";
++  } finally {
++    await c.query("ROLLBACK").catch(() => undefined);
++    c.release();
++  }
++}
++
++describe("audit_log is append-only for the app role", () => {
++  it("connects as clinova_app, not as the owner", async () => {
++    const { rows } = await pool.query<{ who: string; owner: string }>(
++      "select current_user as who, (select tableowner from pg_tables where tablename = 'audit_log') as owner",
++    );
++    expect(rows[0]!.who).toBe("clinova_app");
++    expect(rows[0]!.owner).not.toBe("clinova_app");
++  });
++
++  it("can add an audit event", async () => {
++    expect(
++      await attempt((c) =>
++        c.query("insert into audit_log (actor_type, action, entity_type) values ('system', 'test.append_only', 'test')"),
++      ),
++    ).toBeNull();
++  });
++
++  it.each([
++    ["rewrite", "update audit_log set action = 'tampered' where true"],
++    ["delete", "delete from audit_log where true"],
++    ["truncate", "truncate audit_log"],
++    ["drop", "drop table audit_log"],
++  ])("cannot %s it (42501 permission denied)", async (_, sql) => {
++    expect(await attempt((c) => c.query(sql))).toBe("42501");
++  });
++
++  it("cannot grant itself the rights back (Postgres ignores it with a warning; the right stays absent)", async () => {
++    const c = await pool.connect();
++    try {
++      await c.query("grant update, delete on audit_log to clinova_app").catch(() => undefined);
++      const { rows } = await c.query<{ upd: boolean; del: boolean }>(
++        "select has_table_privilege('audit_log', 'UPDATE') as upd, has_table_privilege('audit_log', 'DELETE') as del",
++      );
++      expect(rows[0]).toEqual({ upd: false, del: false });
++    } finally {
++      c.release();
++    }
++  });
++
++  it("still does everything else the app does (reads and writes on the other tables)", async () => {
++    expect(
++      await attempt(async (c) => {
++        await c.query("select count(*) from appointments");
++        await c.query("insert into rate_limits (bucket, identifier_hash, window_start, count) values ('test.role', 'x', now(), 1)");
++        await c.query("update rate_limits set count = count + 1 where bucket = 'test.role'");
++        await c.query("delete from rate_limits where bucket = 'test.role'");
++        await c.query("delete from verifications where false");
++      }),
++    ).toBeNull();
++  });
++});
+diff --git a/vitest.integration.config.mts b/vitest.integration.config.mts
+index b224de5..cc029f8 100644
+--- a/vitest.integration.config.mts
++++ b/vitest.integration.config.mts
+@@ -15,7 +15,7 @@ export default defineConfig({
+     hookTimeout: 60_000,
+     // One file at a time: they share one database.
+     fileParallelism: false,
+-    env: { TEST_DATABASE_URL: process.env.TEST_DATABASE_URL ?? "" },
++    env: { TEST_DATABASE_URL: process.env.TEST_DATABASE_URL ?? "", TEST_APP_DATABASE_URL: process.env.TEST_APP_DATABASE_URL ?? "" },
+   },
+   resolve: {
+     tsconfigPaths: true,
+-- 
+2.43.0
+
+
+From 01f8570d72e81fd88f13618c9947440056aa343d Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 27 Nov 2026 20:21:50 +0500
+Subject: [PATCH 4/4] refactor(phase-9): erasure uses a unique placeholder
+ number; 0008 is additive only
+
+Safer rollout. Swapping patients_clinic_phone_key for a partial index meant
+old and new code each needed a different index, so no deploy order kept
+bookings working. Instead, each erased record gets its own unassigned +999
+number (11 random digits): erased records never collide on the existing
+index, a returning person still gets a fresh record, and migration 0008 is
+now only ADD COLUMN anonymized_at. Order: migrate, then deploy; the live
+code ignores the new column.
+
+Neither migration has been applied to production yet.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01NjUsEhNL3KvY6tfsuwmur8
+---
+ db/migrations/0008_patient_erasure.sql        |  4 +---
+ db/migrations/meta/0008_snapshot.json         |  3 +--
+ db/migrations/meta/0009_snapshot.json         |  5 ++---
+ db/migrations/meta/_journal.json              |  4 ++--
+ db/schema.ts                                  |  6 +++---
+ server/db/repositories/appointments.ts        |  1 -
+ server/db/repositories/clinic-appointments.ts |  1 -
+ server/db/repositories/patients.ts            | 15 +++++++++++----
+ tests/patient-erasure.test.ts                 | 11 +++++++----
+ 9 files changed, 27 insertions(+), 23 deletions(-)
+
+diff --git a/db/migrations/0008_patient_erasure.sql b/db/migrations/0008_patient_erasure.sql
+index b1488e6..5e1a225 100644
+--- a/db/migrations/0008_patient_erasure.sql
++++ b/db/migrations/0008_patient_erasure.sql
+@@ -1,3 +1 @@
+-DROP INDEX "patients_clinic_phone_key";--> statement-breakpoint
+-ALTER TABLE "patients" ADD COLUMN "anonymized_at" timestamp with time zone;--> statement-breakpoint
+-CREATE UNIQUE INDEX "patients_clinic_phone_key" ON "patients" USING btree ("clinic_id","phone_e164") WHERE "patients"."anonymized_at" IS NULL;
+\ No newline at end of file
++ALTER TABLE "patients" ADD COLUMN "anonymized_at" timestamp with time zone;
+\ No newline at end of file
+diff --git a/db/migrations/meta/0008_snapshot.json b/db/migrations/meta/0008_snapshot.json
+index e6a7455..d566282 100644
+--- a/db/migrations/meta/0008_snapshot.json
++++ b/db/migrations/meta/0008_snapshot.json
+@@ -1,5 +1,5 @@
+ {
+-  "id": "fd7e080f-0a5d-420f-b404-1457544c8ba8",
++  "id": "01d8ee20-6cb6-4ee6-81f9-ba0f092c0365",
+   "prevId": "d5a41a33-7fa1-4a1f-832e-8e6550d8d273",
+   "version": "7",
+   "dialect": "postgresql",
+@@ -1295,7 +1295,6 @@
+             }
+           ],
+           "isUnique": true,
+-          "where": "\"patients\".\"anonymized_at\" IS NULL",
+           "concurrently": false,
+           "method": "btree",
+           "with": {}
+diff --git a/db/migrations/meta/0009_snapshot.json b/db/migrations/meta/0009_snapshot.json
+index 0597336..1ff4831 100644
+--- a/db/migrations/meta/0009_snapshot.json
++++ b/db/migrations/meta/0009_snapshot.json
+@@ -1,6 +1,6 @@
+ {
+-  "id": "9bc1d44a-da8c-4cd2-bc67-ee3ca2afef85",
+-  "prevId": "fd7e080f-0a5d-420f-b404-1457544c8ba8",
++  "id": "18953904-fabb-4670-88ff-9168e42dce15",
++  "prevId": "01d8ee20-6cb6-4ee6-81f9-ba0f092c0365",
+   "version": "7",
+   "dialect": "postgresql",
+   "tables": {
+@@ -1297,7 +1297,6 @@
+           "isUnique": true,
+           "with": {},
+           "method": "btree",
+-          "where": "\"patients\".\"anonymized_at\" IS NULL",
+           "concurrently": false
+         },
+         "patients_clinic_id_key": {
+diff --git a/db/migrations/meta/_journal.json b/db/migrations/meta/_journal.json
+index 6f32d42..24dd096 100644
+--- a/db/migrations/meta/_journal.json
++++ b/db/migrations/meta/_journal.json
+@@ -61,14 +61,14 @@
+     {
+       "idx": 8,
+       "version": "7",
+-      "when": 1795790444555,
++      "when": 1795792683472,
+       "tag": "0008_patient_erasure",
+       "breakpoints": true
+     },
+     {
+       "idx": 9,
+       "version": "7",
+-      "when": 1795791091976,
++      "when": 1795792684260,
+       "tag": "0009_app_role_grants",
+       "breakpoints": true
+     }
+diff --git a/db/schema.ts b/db/schema.ts
+index 964a804..409ca79 100644
+--- a/db/schema.ts
++++ b/db/schema.ts
+@@ -512,9 +512,9 @@ export const patients = pgTable(
+   },
+   (t) => [
+     // One patient per phone per clinic — the booking flow's upsert targets this.
+-    // Partial: erased records all share one placeholder number, and a person who
+-    // was erased and books again must get a fresh record, not the erased one.
+-    uniqueIndex("patients_clinic_phone_key").on(t.clinicId, t.phoneE164).where(sql`${t.anonymizedAt} IS NULL`),
++    // Erased records get a unique unassigned +999 number, so they never collide
++    // here, and a person who was erased and books again gets a fresh record.
++    uniqueIndex("patients_clinic_phone_key").on(t.clinicId, t.phoneE164),
+     uniqueIndex("patients_clinic_id_key").on(t.clinicId, t.id), // composite-FK target
+     check("patients_phone_e164", sql`${t.phoneE164} ~ '^\\+[1-9][0-9]{7,14}$'`),
+   ],
+diff --git a/server/db/repositories/appointments.ts b/server/db/repositories/appointments.ts
+index 9b9f98b..9e7aef8 100644
+--- a/server/db/repositories/appointments.ts
++++ b/server/db/repositories/appointments.ts
+@@ -77,7 +77,6 @@ export async function insertOnlineBooking(
+         })
+         .onConflictDoUpdate({
+           target: [patients.clinicId, patients.phoneE164],
+-          targetWhere: sql`${patients.anonymizedAt} IS NULL`, // the partial unique index (erasure)
+           set: { consentAt: sql`now()`, consentPolicyVersion: input.consentPolicyVersion, updatedAt: sql`now()` },
+         })
+         .returning({ id: patients.id });
+diff --git a/server/db/repositories/clinic-appointments.ts b/server/db/repositories/clinic-appointments.ts
+index 2eecc65..a6382c8 100644
+--- a/server/db/repositories/clinic-appointments.ts
++++ b/server/db/repositories/clinic-appointments.ts
+@@ -75,7 +75,6 @@ export async function insertStaffBooking(
+         .values({ clinicId: ctx.clinicId, fullName: input.fullName, phoneE164: input.phoneE164 })
+         .onConflictDoUpdate({
+           target: [patients.clinicId, patients.phoneE164],
+-          targetWhere: sql`${patients.anonymizedAt} IS NULL`, // the partial unique index (erasure)
+           set: { updatedAt: sql`now()` },
+         })
+         .returning({ id: patients.id });
+diff --git a/server/db/repositories/patients.ts b/server/db/repositories/patients.ts
+index f85326e..8e87751 100644
+--- a/server/db/repositories/patients.ts
++++ b/server/db/repositories/patients.ts
+@@ -1,4 +1,4 @@
+-import { randomBytes } from "node:crypto";
++import { randomBytes, randomInt } from "node:crypto";
+ import { and, asc, count, desc, eq, gt, ilike, isNull, like, max, or, sql } from "drizzle-orm";
+ import { appointments, auditLog, patients, services, staff } from "../../../db/schema";
+ import type { ClinicContext } from "./context";
+@@ -112,8 +112,15 @@ export async function updatePatient(ctx: ClinicContext, patientId: string, input
+ 
+ /** What an erased record holds instead of the patient's name and number. */
+ export const ERASED_NAME = "—";
+-/** +999 is not an assigned country code, so this can never reach a real phone. Satisfies the E.164 check. */
+-export const ERASED_PHONE = "+99900000000";
++/**
++ * What an erased record holds instead of the phone number: +999 (not an
++ * assigned country code, so it can never reach a real phone) and 11 random
++ * digits, unique per record so the one-patient-per-phone index never collides.
++ * Satisfies the E.164 check.
++ */
++export const ERASED_PHONE_PREFIX = "+999";
++const erasedPhone = () => ERASED_PHONE_PREFIX + Array.from({ length: 11 }, () => randomInt(10)).join("");
++export const isErasedPhone = (phoneE164: string) => phoneE164.startsWith(ERASED_PHONE_PREFIX);
+ 
+ export type AnonymizePatientResult =
+   | { ok: true; cancelledUpcoming: number }
+@@ -145,7 +152,7 @@ export async function anonymizePatient(ctx: ClinicContext, patientId: string, no
+     const now = new Date(nowMs);
+     await tx
+       .update(patients)
+-      .set({ fullName: ERASED_NAME, phoneE164: ERASED_PHONE, consentAt: null, consentPolicyVersion: null, anonymizedAt: now, updatedAt: now })
++      .set({ fullName: ERASED_NAME, phoneE164: erasedPhone(), consentAt: null, consentPolicyVersion: null, anonymizedAt: now, updatedAt: now })
+       .where(and(eq(patients.id, patientId), eq(patients.clinicId, ctx.clinicId)));
+ 
+     const mine = and(eq(appointments.clinicId, ctx.clinicId), eq(appointments.patientId, patientId));
+diff --git a/tests/patient-erasure.test.ts b/tests/patient-erasure.test.ts
+index 43cad47..3c66b3f 100644
+--- a/tests/patient-erasure.test.ts
++++ b/tests/patient-erasure.test.ts
+@@ -75,7 +75,9 @@ describe("erasing a patient", () => {
+   it("overwrites name and phone, clears consent, and keeps the row", async () => {
+     expect(await patientsRepo.anonymizePatient(ctx, nouraId, ERASE_AT)).toEqual({ ok: true, cancelledUpcoming: 1 });
+     const p = await patientRow(nouraId);
+-    expect(p).toMatchObject({ fullName: patientsRepo.ERASED_NAME, phoneE164: patientsRepo.ERASED_PHONE, consentAt: null, consentPolicyVersion: null });
++    expect(p).toMatchObject({ fullName: patientsRepo.ERASED_NAME, consentAt: null, consentPolicyVersion: null });
++    expect(patientsRepo.isErasedPhone(p.phoneE164)).toBe(true);
++    expect(p.phoneE164).toMatch(/^\+999\d{11}$/);
+     expect(p.anonymizedAt?.getTime()).toBe(ERASE_AT);
+     expect(JSON.stringify(p)).not.toMatch(/Noura|512345678/);
+   });
+@@ -121,11 +123,12 @@ describe("erasing a patient", () => {
+     expect((await patientRow(nouraId)).fullName).toBe(patientsRepo.ERASED_NAME);
+   });
+ 
+-  it("several erased patients can coexist (the phone rule ignores erased records)", async () => {
++  it("several erased patients can coexist, each with their own placeholder number", async () => {
+     const [someone] = await db.select({ id: patients.id }).from(patients).where(eq(patients.phoneE164, "+966500000009"));
+     expect((await patientsRepo.anonymizePatient(ctx, someone!.id, ERASE_AT)).ok).toBe(true);
+-    const erased = await db.select().from(patients).where(and(eq(patients.clinicId, ctx.clinicId), eq(patients.phoneE164, patientsRepo.ERASED_PHONE)));
+-    expect(erased.length).toBeGreaterThanOrEqual(2);
++    const erased = (await db.select().from(patients).where(eq(patients.clinicId, ctx.clinicId))).filter((p) => p.anonymizedAt);
++    expect(erased.length).toBe(2);
++    expect(new Set(erased.map((p) => p.phoneE164)).size).toBe(2);
+   });
+ 
+   it("the database still refuses two live records with one phone", async () => {
+-- 
+2.43.0
+
