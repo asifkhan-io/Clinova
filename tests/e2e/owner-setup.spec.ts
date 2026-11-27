@@ -19,7 +19,7 @@ test("an owner sets up an empty clinic and patients can then book it", async ({ 
   // 1. A service.
   await page.getByRole("navigation", { name: "Clinic" }).getByRole("link", { name: "Services" }).click();
   await page.getByLabel("Name (English)").fill("Whitening");
-  await page.getByLabel("Name (Arabic)").fill("تبييض");
+  await page.getByLabel(/^Name \(Arabic/).fill("تبييض");
   await page.getByLabel("Duration (minutes)").fill("45");
   await page.getByLabel(/^Price \(SAR\)/).fill("300");
   await page.getByRole("button", { name: "Add service" }).click();
@@ -38,7 +38,7 @@ test("an owner sets up an empty clinic and patients can then book it", async ({ 
   // 3. A dentist: starts with every active service and the clinic's hours.
   await page.getByRole("navigation", { name: "Clinic" }).getByRole("link", { name: "Dentists" }).click();
   await page.getByLabel("Name (English)").fill("Dr Layla");
-  await page.getByLabel("Name (Arabic)").fill("د. ليلى");
+  await page.getByLabel(/^Name \(Arabic/).fill("د. ليلى");
   await page.getByRole("button", { name: "Add dentist" }).click();
   await expect(page.getByRole("heading", { name: "Your dentists (1)" })).toBeVisible();
   await expect(page.getByRole("listitem").filter({ hasText: "Dr Layla" })).toContainText("Whitening");

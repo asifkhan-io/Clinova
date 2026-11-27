@@ -171,9 +171,10 @@ export const clinics = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     slug: text("slug").notNull(),
 
-    // Bilingual data, not just a bilingual UI.
+    // Bilingual data, not just a bilingual UI. Arabic is optional (2026-11-27,
+    // scope §13): NULL means "not translated", and the Arabic page shows English.
     nameEn: text("name_en").notNull(),
-    nameAr: text("name_ar").notNull(),
+    nameAr: text("name_ar"),
     addressEn: text("address_en"),
     addressAr: text("address_ar"),
     phone: text("phone"),
@@ -182,6 +183,11 @@ export const clinics = pgTable(
     // Scheduling identity. Timestamps are UTC everywhere; this is how we get back
     // to local time for slot generation.
     timezone: text("timezone").notNull().default("Asia/Riyadh"), // IANA name
+    // ISO 3166-1 alpha-2. Decides how local phone numbers are read and which
+    // currency prices are in (lib/countries.ts). Set when the clinic is created;
+    // not editable, because changing it would reinterpret every stored price.
+    // The CHECK is shape-only, so a new market is a code change, not a migration.
+    country: text("country").notNull().default("SA"),
     clinicType: clinicTypeEnum("clinic_type").notNull().default("dental"),
 
     // Commercial state — the v1 billing lever, checked in the auth layer.
@@ -214,6 +220,7 @@ export const clinics = pgTable(
   (t) => [
     uniqueIndex("clinics_slug_key").on(t.slug),
     check("clinics_slug_format", sql`${t.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`),
+    check("clinics_country_format", sql`${t.country} ~ '^[A-Z]{2}$'`),
     check("clinics_buffer_range", sql`${t.bufferMinutes} BETWEEN 0 AND 120`),
     check("clinics_lead_range", sql`${t.minLeadMinutes} BETWEEN 0 AND 20160`),
     check("clinics_horizon_range", sql`${t.maxHorizonDays} BETWEEN 1 AND 365`),
@@ -312,11 +319,12 @@ export const services = pgTable(
       .notNull()
       .references(() => clinics.id, { onDelete: "cascade" }),
     nameEn: text("name_en").notNull(),
-    nameAr: text("name_ar").notNull(), // required: Arabic is a launch language
+    nameAr: text("name_ar"), // optional since 2026-11-27 (scope §13); NULL = show English
     descriptionEn: text("description_en"),
     descriptionAr: text("description_ar"),
     durationMinutes: integer("duration_minutes").notNull(),
-    // Halalas. NULL = "price on request"; 0 = free. The nullability is load-bearing.
+    // Minor units of the clinic's currency (halalas, paisa). NULL = "price on
+    // request"; 0 = free. The nullability is load-bearing.
     priceMinor: integer("price_minor"),
     isActive: boolean("is_active").notNull().default(true),
     sortOrder: integer("sort_order").notNull().default(0),
@@ -345,7 +353,7 @@ export const staff = pgTable(
       .references(() => clinics.id, { onDelete: "cascade" }),
     userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
     displayNameEn: text("display_name_en").notNull(),
-    displayNameAr: text("display_name_ar").notNull(),
+    displayNameAr: text("display_name_ar"), // optional since 2026-11-27; NULL = show English
     titleEn: text("title_en"), // "Orthodontist" — about the dentist, never a patient
     titleAr: text("title_ar"),
     isActive: boolean("is_active").notNull().default(true),

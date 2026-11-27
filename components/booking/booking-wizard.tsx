@@ -298,7 +298,7 @@ export function BookingWizard({
               required
               autoComplete='tel'
               dir='ltr'
-              placeholder='05X XXX XXXX'
+              placeholder={clinic.phoneExample}
               className={field}
             />
           </label>

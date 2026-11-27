@@ -8,7 +8,7 @@ import { saveServiceAction } from "@/server/actions/services";
 export type ServiceFormValues = {
   id: string;
   nameEn: string;
-  nameAr: string;
+  nameAr: string | null;
   descriptionEn: string | null;
   descriptionAr: string | null;
   durationMinutes: number;
@@ -18,7 +18,7 @@ export type ServiceFormValues = {
 const field = "rounded-md border px-3 py-2 text-start";
 
 /** One form for create (no `service`) and edit (with `service`). */
-export function ServiceForm({ service, onDone }: { service?: ServiceFormValues; onDone?: () => void }) {
+export function ServiceForm({ service, currency, onDone }: { service?: ServiceFormValues; currency: string; onDone?: () => void }) {
   const t = useTranslations("Services");
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -42,7 +42,7 @@ export function ServiceForm({ service, onDone }: { service?: ServiceFormValues; 
       </label>
       <label className="flex flex-col gap-1">
         <span className="text-sm font-medium">{t("nameAr")}</span>
-        <input name="nameAr" required dir="rtl" defaultValue={service?.nameAr} className={field} />
+        <input name="nameAr" dir="rtl" defaultValue={service?.nameAr ?? ""} className={field} />
       </label>
       <label className="flex flex-col gap-1">
         <span className="text-sm font-medium">{t("descriptionEn")}</span>
@@ -67,7 +67,7 @@ export function ServiceForm({ service, onDone }: { service?: ServiceFormValues; 
         />
       </label>
       <label className="flex flex-col gap-1">
-        <span className="text-sm font-medium">{t("price")}</span>
+        <span className="text-sm font-medium">{t("price", { currency })}</span>
         <input
           name="price"
           inputMode="decimal"

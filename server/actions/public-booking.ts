@@ -1,7 +1,8 @@
 "use server";
 
 import { headers } from "next/headers";
-import { bookingSchema } from "@/lib/validation/booking";
+import { countryOf } from "@/lib/countries";
+import { bookingSchemaFor } from "@/lib/validation/booking";
 import { findPublicClinic } from "@/server/db/repositories/public-clinic";
 import { createPublicBooking } from "@/server/services/booking";
 import { notifyPublicBooking } from "@/server/services/notifications";
@@ -39,7 +40,7 @@ export async function publicBookAction(_prev: Result | null, form: FormData): Pr
   const found = await findPublicClinic(String(form.get("slug") ?? ""));
   if (!found) return { ok: false, error: "not_found" };
 
-  const parsed = bookingSchema.safeParse({
+  const parsed = bookingSchemaFor(countryOf(found.clinic.country)).safeParse({
     serviceId: form.get("serviceId"),
     staffId: form.get("staffId"),
     startMs: form.get("startMs"),

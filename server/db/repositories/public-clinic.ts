@@ -20,6 +20,7 @@ export async function findPublicClinic(slug: string) {
       phone: clinics.phone,
       mapsUrl: clinics.mapsUrl,
       timezone: clinics.timezone,
+      country: clinics.country,
       status: clinics.status,
       bookingEnabled: clinics.bookingEnabled,
       maxHorizonDays: clinics.maxHorizonDays,

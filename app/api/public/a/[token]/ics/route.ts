@@ -12,7 +12,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/public/a/[to
   if (!appt) return new Response("Not found", { status: 404 });
 
   const ar = new URL(request.url).searchParams.get("lang") === "ar";
-  const pick = (en: string | null, arText: string | null) => (ar ? arText || en : en || arText);
+  const pick = (en: string | null, arText: string | null) => (ar ? arText || en : en);
   const clinicName = pick(appt.clinic.nameEn, appt.clinic.nameAr)!;
   const body = buildIcs({
     uid: `${appt.id}@clinova`,

@@ -54,7 +54,8 @@ export function appBaseUrl(): string | null {
   return url ? url.replace(/\/+$/, "") : null;
 }
 
-const pick = (locale: EmailLocale, enValue: string, arValue: string) => (locale === "ar" ? arValue : enValue);
+// An untranslated Arabic name (NULL, scope §13) falls back to English, never to a blank.
+const pick = (locale: EmailLocale, enValue: string, arValue: string | null) => (locale === "ar" ? arValue || enValue : enValue);
 
 function button(href: string, label: string): string {
   return `<p style="margin:20px 0 8px"><a href="${esc(href)}" style="display:inline-block;background:#111111;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:6px;font-weight:600">${esc(label)}</a></p>`;
@@ -139,7 +140,7 @@ export function clinicAlertEmail(n: AppointmentNotice, event: ClinicEvent, base:
 
 /** The day at a glance, Arabic and English, times on the clinic's wall clock. */
 export function morningDigestEmail(
-  clinic: { nameEn: string; nameAr: string; timeZone: string },
+  clinic: { nameEn: string; nameAr: string | null; timeZone: string },
   items: AppointmentNotice[],
   base: string,
 ): Rendered {

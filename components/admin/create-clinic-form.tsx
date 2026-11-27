@@ -2,6 +2,7 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { useActionState } from "react";
+import { COUNTRY_CODES } from "@/lib/countries";
 import { createClinicAction } from "@/server/actions/admin";
 import { InviteLink } from "./invite-link";
 
@@ -21,7 +22,16 @@ export function CreateClinicForm() {
       </label>
       <label className="flex flex-col gap-1">
         <span className="text-sm font-medium">{t("nameAr")}</span>
-        <input name="nameAr" required dir="rtl" className={field} />
+        <input name="nameAr" dir="rtl" className={field} />
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="text-sm font-medium">{t("country")}</span>
+        <select name="country" required defaultValue="PK" className={field}>
+          {COUNTRY_CODES.map((c) => (
+            <option key={c} value={c}>{t(`countries.${c}`)}</option>
+          ))}
+        </select>
+        <span className="text-xs opacity-60">{t("countryHint")}</span>
       </label>
       <label className="flex flex-col gap-1">
         <span className="text-sm font-medium">{t("slug")}</span>

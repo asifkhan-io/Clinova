@@ -13,7 +13,8 @@ import {
   staffRescheduleAppointment,
   staffSetOutcome,
 } from "@/server/services/staff-appointments";
-import { minutesOf, patientEditSchema, staffBookingSchema, staffRescheduleSchema } from "@/lib/validation/appointment";
+import { minutesOf, patientEditSchemaFor, staffBookingSchemaFor, staffRescheduleSchema } from "@/lib/validation/appointment";
+import { getClinicCountry } from "@/server/db/repositories/clinics";
 import { type ActionResult, authFailure } from "./result";
 
 /**
@@ -55,7 +56,7 @@ export async function createAppointmentAction(
   } catch (e) {
     return authFailure(e);
   }
-  const parsed = staffBookingSchema.safeParse(Object.fromEntries(form));
+  const parsed = staffBookingSchemaFor(await getClinicCountry(ctx)).safeParse(Object.fromEntries(form));
   if (!parsed.success) return { ok: false, error: fieldError(parsed.error.issues) };
   const { date, time, phone, ...rest } = parsed.data;
   const startMs = await clinicWallTimeToUtc(ctx, date, minutesOf(time));
@@ -116,7 +117,7 @@ export async function updatePatientAction(_prev: Result | null, form: FormData):
   } catch (e) {
     return authFailure(e);
   }
-  const parsed = patientEditSchema.safeParse(Object.fromEntries(form));
+  const parsed = patientEditSchemaFor(await getClinicCountry(ctx)).safeParse(Object.fromEntries(form));
   if (!parsed.success) return { ok: false, error: fieldError(parsed.error.issues) };
   return done(await updatePatient(ctx, parsed.data.patientId, { fullName: parsed.data.fullName, phoneE164: parsed.data.phone }));
 }

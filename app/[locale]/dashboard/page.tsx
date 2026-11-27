@@ -100,7 +100,7 @@ async function ClinicSummary({ locale }: { locale: Locale }) {
     {ctx.role === "clinic_owner" && <SetupChecklist steps={checklist.steps} locale={locale} />}
     <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
       <dt className="opacity-70">{t("clinic")}</dt>
-      <dd className="font-medium">{locale === "ar" ? clinic.nameAr : clinic.nameEn}</dd>
+      <dd className="font-medium">{(locale === "ar" ? clinic.nameAr : clinic.nameEn) || clinic.nameEn}</dd>
       <dt className="opacity-70">{t("role")}</dt>
       <dd>{t(`roles.${ctx.role}`)}</dd>
     </dl>

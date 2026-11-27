@@ -7,7 +7,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { appointments, auditLog, clinics, patients } from "@/db/schema";
-import { bookingSchema, normalisePhone } from "@/lib/validation/booking";
+import { bookingSchemaFor, normalisePhone } from "@/lib/validation/booking";
 import { createTestDb } from "./helpers/db";
 import { expectNoPii } from "./helpers/pii";
 
@@ -116,14 +116,15 @@ describe("double booking is impossible (DoD 4)", () => {
 
 describe("booking form validation", () => {
   it("accepts Saudi local mobiles and international numbers, rejects junk", () => {
-    expect(normalisePhone("05 1234 5678")).toBe("+966512345678");
-    expect(normalisePhone("00966512345678")).toBe("+966512345678");
-    expect(normalisePhone("+44 20 7946 0958")).toBe("+442079460958");
-    expect(normalisePhone("12345")).toBeNull();
+    expect(normalisePhone("05 1234 5678", "SA")).toBe("+966512345678");
+    expect(normalisePhone("00966512345678", "SA")).toBe("+966512345678");
+    expect(normalisePhone("+44 20 7946 0958", "SA")).toBe("+442079460958");
+    expect(normalisePhone("12345", "SA")).toBeNull();
   });
 
   it("requires consent and a real name", () => {
     const base = { serviceId: cleaning, staffId: "any", startMs: String(at(9)), fullName: "Noura", phone: "0512345678", email: "", consent: true };
+    const bookingSchema = bookingSchemaFor("SA");
     expect(bookingSchema.safeParse(base).success).toBe(true);
     expect(bookingSchema.safeParse({ ...base, consent: false }).success).toBe(false);
     expect(bookingSchema.safeParse({ ...base, fullName: "N" }).success).toBe(false);

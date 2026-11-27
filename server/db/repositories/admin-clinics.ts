@@ -1,3 +1,4 @@
+import { COUNTRIES, type CountryCode } from "../../../lib/countries";
 import { and, asc, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { clinicMembers, clinics, invites, users } from "../../../db/schema";
 import type { AdminContext } from "./context";
@@ -67,7 +68,7 @@ export async function listClinics(ctx: AdminContext) {
 /** Creates the clinic and its owner invite together: a clinic never exists without a way in. */
 export async function createClinicWithOwnerInvite(
   ctx: AdminContext,
-  input: { slug: string; nameEn: string; nameAr: string; ownerEmail: string },
+  input: { slug: string; nameEn: string; nameAr: string | null; country: CountryCode; ownerEmail: string },
   tokenHash: string,
 ) {
   return ctx.db.transaction(async (tx) => {
@@ -77,6 +78,9 @@ export async function createClinicWithOwnerInvite(
         slug: input.slug,
         nameEn: input.nameEn,
         nameAr: input.nameAr,
+        // The country picks the starting timezone; the owner can change the zone later, not the country.
+        country: input.country,
+        timezone: COUNTRIES[input.country].timezone,
         status: "trial",
         trialEndsAt: sql`now() + make_interval(days => ${TRIAL_DAYS})`,
       })

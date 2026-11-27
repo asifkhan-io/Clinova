@@ -1,3 +1,4 @@
+import { type CountryCode, countryOf } from "../../../lib/countries";
 import { and, count, eq, notExists, sql } from "drizzle-orm";
 import { clinicHours, clinics, services, staff, staffHours, staffServices } from "../../../db/schema";
 import type { ClinicContext } from "./context";
@@ -12,9 +13,15 @@ export async function getOwnClinic(ctx: ClinicContext) {
   return rows[0] ?? null;
 }
 
+/** The clinic's market: how its local phone numbers are read, which currency it prices in. */
+export async function getClinicCountry(ctx: ClinicContext): Promise<CountryCode> {
+  const [row] = await ctx.db.select({ country: clinics.country }).from(clinics).where(eq(clinics.id, ctx.clinicId)).limit(1);
+  return countryOf(row?.country);
+}
+
 type ProfileFields = {
   nameEn: string;
-  nameAr: string;
+  nameAr: string | null;
   addressEn: string | null;
   addressAr: string | null;
   phone: string | null;

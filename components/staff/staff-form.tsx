@@ -8,7 +8,7 @@ import { saveStaffAction } from "@/server/actions/staff";
 export type StaffFormValues = {
   id: string;
   displayNameEn: string;
-  displayNameAr: string;
+  displayNameAr: string | null;
   titleEn: string | null;
   titleAr: string | null;
 };
@@ -38,7 +38,7 @@ export function StaffForm({ member, onDone }: { member?: StaffFormValues; onDone
       </label>
       <label className="flex flex-col gap-1">
         <span className="text-sm font-medium">{t("nameAr")}</span>
-        <input name="displayNameAr" required dir="rtl" placeholder="د. سارة أحمد" defaultValue={member?.displayNameAr} className={field} />
+        <input name="displayNameAr" dir="rtl" placeholder="د. سارة أحمد" defaultValue={member?.displayNameAr ?? ""} className={field} />
       </label>
       <label className="flex flex-col gap-1">
         <span className="text-sm font-medium">{t("titleEn")}</span>

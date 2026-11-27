@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { optionalName } from "./optional-name";
 
 const optionalText = z
   .string()
@@ -8,7 +9,7 @@ const optionalText = z
 
 export const staffSchema = z.object({
   displayNameEn: z.string().trim().min(2).max(120),
-  displayNameAr: z.string().trim().min(2).max(120),
+  displayNameAr: optionalName(),
   // About the dentist ("Orthodontist"), never about a patient.
   titleEn: optionalText,
   titleAr: optionalText,

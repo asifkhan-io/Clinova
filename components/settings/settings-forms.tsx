@@ -45,7 +45,7 @@ export function BookingSwitch({ enabled, ready }: { enabled: boolean; ready: boo
 }
 
 type Profile = {
-  nameEn: string; nameAr: string; addressEn: string | null; addressAr: string | null;
+  nameEn: string; nameAr: string | null; addressEn: string | null; addressAr: string | null;
   phone: string | null; mapsUrl: string | null; timezone: string;
 };
 
@@ -57,7 +57,7 @@ export function ProfileForm({ clinic }: { clinic: Profile }) {
       <label className="flex flex-col gap-1"><span className="text-sm font-medium">{t("nameEn")}</span>
         <input name="nameEn" required dir="ltr" defaultValue={clinic.nameEn} className={field} /></label>
       <label className="flex flex-col gap-1"><span className="text-sm font-medium">{t("nameAr")}</span>
-        <input name="nameAr" required dir="rtl" defaultValue={clinic.nameAr} className={field} /></label>
+        <input name="nameAr" dir="rtl" defaultValue={clinic.nameAr ?? ""} className={field} /></label>
       <label className="flex flex-col gap-1"><span className="text-sm font-medium">{t("addressEn")}</span>
         <textarea name="addressEn" rows={2} dir="ltr" defaultValue={clinic.addressEn ?? ""} className={field} /></label>
       <label className="flex flex-col gap-1"><span className="text-sm font-medium">{t("addressAr")}</span>
