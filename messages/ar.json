@@ -302,7 +302,16 @@
       "clinic_suspended": "هذه العيادة موقوفة، لذلك التعديلات معطّلة."
     },
     "publicPage": "صفحة الحجز الخاصة بك",
-    "publicPageHint": "شارك هذا الرابط مع المرضى (واتساب، إنستغرام، خرائط Google)."
+    "publicPageHint": "شارك هذا الرابط مع المرضى (واتساب، إنستغرام، خرائط Google).",
+    "timezones": {
+      "Asia_Karachi": "باكستان (كراتشي)",
+      "Asia_Riyadh": "السعودية (الرياض)",
+      "Asia_Dubai": "الإمارات (دبي)",
+      "Asia_Kuwait": "الكويت",
+      "Asia_Qatar": "قطر (الدوحة)",
+      "Asia_Bahrain": "البحرين",
+      "Asia_Muscat": "عُمان (مسقط)"
+    }
   },
   "Setup": {
     "title": "قائمة الإعداد",

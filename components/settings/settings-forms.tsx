@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { useActionState, useState } from "react";
 import { COUNTRIES, countryOf } from "@/lib/countries";
 import { useRouter } from "@/lib/i18n/navigation";
-import { CLINIC_TIMEZONES, SLOT_STEPS } from "@/lib/validation/clinic-settings";
+import { CLINIC_TIMEZONES, SLOT_STEPS, timezoneKey } from "@/lib/validation/clinic-settings";
 import { saveBookingRulesAction, saveProfileAction, setBookingEnabledAction } from "@/server/actions/settings";
 
 type Result = Awaited<ReturnType<typeof saveProfileAction>>;
@@ -68,8 +68,9 @@ export function ProfileForm({ clinic }: { clinic: Profile }) {
       <label className="flex flex-col gap-1"><span className="text-sm font-medium">{t("mapsUrl")}</span>
         <input name="mapsUrl" type="url" dir="ltr" placeholder="https://maps.app.goo.gl/…" defaultValue={clinic.mapsUrl ?? ""} className={field} /></label>
       <label className="flex flex-col gap-1 sm:col-span-2"><span className="text-sm font-medium">{t("timezone")}</span>
-        <select name="timezone" defaultValue={clinic.timezone} dir="ltr" className={field}>
-          {CLINIC_TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
+        {/* The value stays the IANA id the database stores; only the label is translated (F2). */}
+        <select name="timezone" defaultValue={clinic.timezone} className={field}>
+          {CLINIC_TIMEZONES.map((tz) => <option key={tz} value={tz}>{t(`timezones.${timezoneKey(tz)}`)}</option>)}
         </select></label>
       <div className="flex flex-col gap-2 sm:col-span-2">
         <Status state={state} saved={saved} />

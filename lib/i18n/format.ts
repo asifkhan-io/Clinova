@@ -32,6 +32,16 @@ export function clinicMoney(locale: string, minor: number, currency: string) {
   }).format(minor / 100);
 }
 
+/**
+ * A currency's name in the reader's language ("Pakistani Rupee", "روبية
+ * باكستانية"), for labels. A bare ISO code ("SAR") reads as stray English on an
+ * Arabic page. Computed on the server and passed down, so the browser's own
+ * Intl data can never disagree with it during hydration.
+ */
+export function currencyName(locale: string, currency: string) {
+  return new Intl.DisplayNames([locale], { type: "currency" }).of(currency) ?? currency;
+}
+
 /** Minutes from midnight -> "9:30 AM" / "9:30 ص", Latin digits. 1440 reads as midnight. */
 export function clinicMinutes(locale: string, minutes: number) {
   return new Intl.DateTimeFormat(locale, {

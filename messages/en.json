@@ -302,7 +302,16 @@
       "clinic_suspended": "This clinic is suspended, so changes are disabled."
     },
     "publicPage": "Your booking page",
-    "publicPageHint": "Share this link with patients (WhatsApp, Instagram, Google Maps)."
+    "publicPageHint": "Share this link with patients (WhatsApp, Instagram, Google Maps).",
+    "timezones": {
+      "Asia_Karachi": "Pakistan (Karachi)",
+      "Asia_Riyadh": "Saudi Arabia (Riyadh)",
+      "Asia_Dubai": "UAE (Dubai)",
+      "Asia_Kuwait": "Kuwait",
+      "Asia_Qatar": "Qatar (Doha)",
+      "Asia_Bahrain": "Bahrain",
+      "Asia_Muscat": "Oman (Muscat)"
+    }
   },
   "Setup": {
     "title": "Setup checklist",

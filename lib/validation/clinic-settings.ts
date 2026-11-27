@@ -22,6 +22,18 @@ export const CLINIC_TIMEZONES = [
 ] as const;
 
 /** The clinic profile. The phone is read in the clinic's country (local or international). */
+/** Each zone's label key in messages (Settings.timezones); "/" can't be part of a key path. */
+const TIMEZONE_KEYS = {
+  "Asia/Karachi": "Asia_Karachi",
+  "Asia/Riyadh": "Asia_Riyadh",
+  "Asia/Dubai": "Asia_Dubai",
+  "Asia/Kuwait": "Asia_Kuwait",
+  "Asia/Qatar": "Asia_Qatar",
+  "Asia/Bahrain": "Asia_Bahrain",
+  "Asia/Muscat": "Asia_Muscat",
+} as const satisfies Record<(typeof CLINIC_TIMEZONES)[number], string>;
+export const timezoneKey = (tz: (typeof CLINIC_TIMEZONES)[number]) => TIMEZONE_KEYS[tz];
+
 export const clinicProfileSchemaFor = (country: CountryCode) =>
   z.object({
     nameEn: z.string().trim().min(2).max(120),

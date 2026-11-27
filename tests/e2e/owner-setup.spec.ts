@@ -21,7 +21,7 @@ test("an owner sets up an empty clinic and patients can then book it", async ({ 
   await page.getByLabel("Name (English)").fill("Whitening");
   await page.getByLabel(/^Name \(Arabic/).fill("تبييض");
   await page.getByLabel("Duration (minutes)").fill("45");
-  await page.getByLabel(/^Price \(SAR\)/).fill("300");
+  await page.getByLabel(/^Price \(Saudi Riyal\)/).fill("300");
   await page.getByRole("button", { name: "Add service" }).click();
   await expect(page.getByRole("heading", { name: "Your services (1)" })).toBeVisible();
 

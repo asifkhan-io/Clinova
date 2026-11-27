@@ -33,6 +33,7 @@ export async function listClinics(ctx: AdminContext) {
         slug: clinics.slug,
         nameEn: clinics.nameEn,
         nameAr: clinics.nameAr,
+        country: clinics.country,
         status: clinics.status,
         createdAt: clinics.createdAt,
       })

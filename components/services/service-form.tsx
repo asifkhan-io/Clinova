@@ -18,7 +18,7 @@ export type ServiceFormValues = {
 const field = "rounded-md border px-3 py-2 text-start";
 
 /** One form for create (no `service`) and edit (with `service`). */
-export function ServiceForm({ service, currency, onDone }: { service?: ServiceFormValues; currency: string; onDone?: () => void }) {
+export function ServiceForm({ service, currencyLabel, onDone }: { service?: ServiceFormValues; currencyLabel: string; onDone?: () => void }) {
   const t = useTranslations("Services");
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -67,7 +67,7 @@ export function ServiceForm({ service, currency, onDone }: { service?: ServiceFo
         />
       </label>
       <label className="flex flex-col gap-1">
-        <span className="text-sm font-medium">{t("price", { currency })}</span>
+        <span className="text-sm font-medium">{t("price", { currency: currencyLabel })}</span>
         <input
           name="price"
           inputMode="decimal"

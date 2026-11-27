@@ -8,8 +8,9 @@ import { expect, signIn, t, test } from "./support/fixtures";
 
 /**
  * Latin words left on an Arabic page. Legitimately Latin text is removed first:
- * anything the markup deliberately marks dir="ltr" (e.g. the IANA time-zone
- * list, finding F2), e-mail addresses, URLs and paths. Clinic and dentist names
+ * anything the markup deliberately marks dir="ltr" (phone numbers, e-mail
+ * inputs), e-mail addresses, URLs and paths. Time zones are translated city
+ * names since F2 was fixed, so they are checked like any other text. Clinic and dentist names
  * are entered in Arabic by the seed, so they must not trip this. Brand names
  * stay Latin on purpose.
  */

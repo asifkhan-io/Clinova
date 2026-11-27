@@ -3,7 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { Suspense } from "react";
 import { ServiceForm } from "@/components/services/service-form";
 import { ServiceRow } from "@/components/services/service-row";
-import { clinicMoney } from "@/lib/i18n/format";
+import { clinicMoney, currencyName } from "@/lib/i18n/format";
 import { resolveLocale } from "@/lib/i18n/server";
 import { requireClinicPage } from "@/server/auth/page-guards";
 import { COUNTRIES } from "@/lib/countries";
@@ -29,6 +29,7 @@ async function ServicesBody({ locale }: { locale: Locale }) {
   const t = await getTranslations({ locale, namespace: "Services" });
   const [services, country] = await Promise.all([listServices(ctx), getClinicCountry(ctx)]);
   const currency = COUNTRIES[country].currency;
+  const currencyLabel = currencyName(locale, currency);
   const canEdit = ctx.role === "clinic_owner" && ctx.clinicStatus !== "suspended";
   const ar = locale === "ar";
 
@@ -37,7 +38,7 @@ async function ServicesBody({ locale }: { locale: Locale }) {
       {canEdit && (
         <section className="flex flex-col gap-3 rounded-lg border p-4">
           <h2 className="font-semibold">{t("addTitle")}</h2>
-          <ServiceForm currency={currency} />
+          <ServiceForm currencyLabel={currencyLabel} />
         </section>
       )}
 
@@ -53,7 +54,7 @@ async function ServicesBody({ locale }: { locale: Locale }) {
               name={(ar ? s.nameAr : s.nameEn) || s.nameEn}
               description={(ar ? s.descriptionAr : s.descriptionEn) ?? (ar ? s.descriptionEn : s.descriptionAr)}
               priceLabel={s.priceMinor == null ? t("priceOnRequest") : clinicMoney(locale, s.priceMinor, currency)}
-              currency={currency}
+              currencyLabel={currencyLabel}
               canEdit={canEdit}
             />
           ))}

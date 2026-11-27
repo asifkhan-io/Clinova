@@ -10,6 +10,8 @@ Arabic, as patient, owner and staff.
 | `staff.spec.ts` | Walk-in booking → calendar → WhatsApp links → cancel → slot free again. |
 | `arabic.spec.ts` | Booking and dashboard in Arabic: `lang="ar"`, `dir="rtl"`, real translations, no stray English. |
 | `access.spec.ts` | Signed-out redirects, wrong password, staff kept out of Settings and the admin area, no cross-clinic reads. |
+| `pakistan.spec.ts` | A Pakistani clinic (no Arabic names): PKR price, `03…` booking, a Saudi local number refused with a clear message, Arabic page falls back to English. |
+| `erase.spec.ts` | Owner erases a patient: record, patient list and the patient's private link stop showing them; staff never see the erase control. |
 
 ## Setup (once)
 

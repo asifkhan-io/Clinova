@@ -13,5 +13,6 @@ export default async function globalTeardown() {
   } finally {
     await db.end();
     rmSync(SEED_FILE, { force: true });
+    rmSync(`${SEED_FILE}.phone-seq`, { force: true });
   }
 }
