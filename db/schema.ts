@@ -503,12 +503,18 @@ export const patients = pgTable(
     // D8: PDPL lawful basis has to be evidenced somewhere.
     consentAt: timestamp("consent_at", { withTimezone: true }),
     consentPolicyVersion: text("consent_policy_version"),
+    // Erasure (scope §8): set when the name and phone were overwritten on the
+    // patient's request. The row stays so the clinic's history and the audit
+    // log stay intact; it is never deleted.
+    anonymizedAt: timestamp("anonymized_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     // One patient per phone per clinic — the booking flow's upsert targets this.
-    uniqueIndex("patients_clinic_phone_key").on(t.clinicId, t.phoneE164),
+    // Partial: erased records all share one placeholder number, and a person who
+    // was erased and books again must get a fresh record, not the erased one.
+    uniqueIndex("patients_clinic_phone_key").on(t.clinicId, t.phoneE164).where(sql`${t.anonymizedAt} IS NULL`),
     uniqueIndex("patients_clinic_id_key").on(t.clinicId, t.id), // composite-FK target
     check("patients_phone_e164", sql`${t.phoneE164} ~ '^\\+[1-9][0-9]{7,14}$'`),
   ],

@@ -72,7 +72,11 @@ export async function insertStaffBooking(
       const [patient] = await tx
         .insert(patients)
         .values({ clinicId: ctx.clinicId, fullName: input.fullName, phoneE164: input.phoneE164 })
-        .onConflictDoUpdate({ target: [patients.clinicId, patients.phoneE164], set: { updatedAt: sql`now()` } })
+        .onConflictDoUpdate({
+          target: [patients.clinicId, patients.phoneE164],
+          targetWhere: sql`${patients.anonymizedAt} IS NULL`, // the partial unique index (erasure)
+          set: { updatedAt: sql`now()` },
+        })
         .returning({ id: patients.id });
       if (!patient) throw new Error("patient upsert returned no row");
 
