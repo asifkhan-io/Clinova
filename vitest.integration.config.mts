@@ -15,7 +15,7 @@ export default defineConfig({
     hookTimeout: 60_000,
     // One file at a time: they share one database.
     fileParallelism: false,
-    env: { TEST_DATABASE_URL: process.env.TEST_DATABASE_URL ?? "" },
+    env: { TEST_DATABASE_URL: process.env.TEST_DATABASE_URL ?? "", TEST_APP_DATABASE_URL: process.env.TEST_APP_DATABASE_URL ?? "" },
   },
   resolve: {
     tsconfigPaths: true,

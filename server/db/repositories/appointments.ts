@@ -1,4 +1,5 @@
 import { and, eq, gt, inArray, lt, ne, sql } from "drizzle-orm";
+import { retryOnDeadlock } from "../retry";
 import { appointments, auditLog, clinics, patients, services, staff } from "../../../db/schema";
 import { type Database, db } from "../client";
 import type { ClinicScope } from "./schedule";
@@ -62,7 +63,7 @@ export async function insertOnlineBooking(
   },
 ): Promise<InsertBookingResult> {
   try {
-    return await scope.db.transaction(async (tx) => {
+    return await retryOnDeadlock(() => scope.db.transaction(async (tx) => {
       // One record per phone per clinic. An existing record keeps its name:
       // knowing someone's phone number must not let you rename them.
       const [patient] = await tx
@@ -107,7 +108,7 @@ export async function insertOnlineBooking(
         metadata: { patientId: patient.id, staffId: input.staffId, serviceId: input.serviceId, startAt: new Date(input.startMs).toISOString(), source: "online" },
       });
       return { ok: true, appointmentId: appointment.id } as const;
-    });
+    }));
   } catch (error) {
     if (isDoubleBooking(error)) return { ok: false, reason: "slot_taken" };
     throw error;
@@ -245,7 +246,7 @@ export async function moveAppointment(
   },
 ): Promise<MoveResult> {
   try {
-    return await scope.db.transaction(async (tx) => {
+    return await retryOnDeadlock(() => scope.db.transaction(async (tx) => {
       const current = await lockAppointment(tx, scope.clinicId, input.appointmentId);
       if (!current || current.status !== "booked" || current.icsSequence !== input.expectedSequence) {
         return { ok: false, reason: "changed" } as const;
@@ -275,7 +276,7 @@ export async function moveAppointment(
         },
       });
       return { ok: true } as const;
-    });
+    }));
   } catch (error) {
     if (isDoubleBooking(error)) return { ok: false, reason: "slot_taken" };
     throw error;

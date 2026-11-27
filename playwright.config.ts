@@ -63,6 +63,9 @@ export default defineConfig({
       // Process env wins over .env.local inside Next, so these override it.
       DATABASE_URL: testDb,
       DATABASE_URL_UNPOOLED: testDb,
+      // Run the app as the restricted role when it's configured, exactly as
+      // production does (Phase 9b). Seeding and cleanup stay on the owner.
+      APP_DATABASE_URL: process.env.TEST_APP_DATABASE_URL || testDb,
       BETTER_AUTH_URL: BASE_URL,
       BETTER_AUTH_SECRET: local.BETTER_AUTH_SECRET || "e2e-only-secret-0123456789-abcdefghij",
       // No real email from tests, ever.
