@@ -355,7 +355,9 @@
       "slot_unavailable": "That time is no longer available.",
       "slot_taken": "Someone booked that time a moment ago.",
       "rate_limited": "Too many attempts from your connection. Please wait a few minutes, or call the clinic to book."
-    }
+    },
+    "privacyLink": "Privacy notice",
+    "termsLink": "Terms of use"
   },
   "Appointment": {
     "loading": "Loading…",
@@ -600,5 +602,99 @@
     "digestEmpty": "No appointments are booked for today.",
     "openCalendar": "Open today's calendar",
     "footer": "Sent by Clinova."
+  },
+  "Legal": {
+    "updated": "Last updated {date}",
+    "home": "Clinova home",
+    "privacyLink": "Privacy notice",
+    "termsLink": "Terms of use",
+    "privacy": {
+      "title": "Privacy notice",
+      "intro": "Clinova is online booking software that dental clinics use for their appointments. This notice explains what happens to your information when you book with a clinic through Clinova.",
+      "sections": {
+        "who": {
+          "title": "Who is responsible",
+          "body": "The clinic you book with decides how your appointment information is used, and is your first contact for any question about it. Clinova runs the software and stores the information on the clinic's behalf. We do not use it for our own purposes."
+        },
+        "what": {
+          "title": "What we collect",
+          "body": "Your name and mobile number, and the appointment itself: the service, the dentist, the date and time, and whether you came.\n\nIf you give an email address, it is used once to send you your booking confirmation and private link. Clinova does not store it; our email delivery provider keeps a delivery record for a limited time."
+        },
+        "notCollected": {
+          "title": "What we do not collect",
+          "body": "No medical history, notes, diagnoses, X-rays or payment details. Clinova does not take payments; you pay the clinic directly."
+        },
+        "why": {
+          "title": "Why we use it",
+          "body": "To book your appointment, let you change or cancel it, and let the clinic contact you about it, for example by phone or WhatsApp. We do not sell your information, show you adverts, or send you marketing."
+        },
+        "whoSees": {
+          "title": "Who can see it",
+          "body": "Only the clinic's own staff, after signing in. Each clinic sees only its own patients. Clinova's administrator accounts manage clinics and have no access to patient records in the app. Every time staff open a patient record, it is logged."
+        },
+        "where": {
+          "title": "Where it is stored",
+          "body": "On secure servers in Singapore, run by our hosting and database providers. Information travels over encrypted connections. Booking emails are sent through an email delivery provider."
+        },
+        "howLong": {
+          "title": "How long we keep it",
+          "body": "For as long as the clinic uses Clinova to keep its appointment records, or until you ask the clinic to erase your details."
+        },
+        "rights": {
+          "title": "Your choices",
+          "body": "You can change or cancel your appointment at any time with the private link you received. To correct your name or number, or to have them erased, contact the clinic.\n\nErasing removes your name and mobile number for good and cancels your upcoming appointments. The clinic keeps an anonymous record that the past appointments took place."
+        },
+        "abuse": {
+          "title": "Protection against misuse",
+          "body": "To stop fake or repeated bookings, we briefly keep a scrambled (hashed) form of your mobile number and network address. It cannot be turned back into the original and is deleted automatically."
+        },
+        "cookies": {
+          "title": "Cookies",
+          "body": "Booking an appointment sets no tracking or advertising cookies. Clinic staff get a sign-in cookie that keeps them logged in."
+        },
+        "changes": {
+          "title": "Changes",
+          "body": "If this notice changes, the date at the top changes too. Bookings record which version you agreed to."
+        }
+      }
+    },
+    "terms": {
+      "title": "Terms of use",
+      "intro": "These terms cover using Clinova to book, change or cancel an appointment with a clinic.",
+      "sections": {
+        "service": {
+          "title": "What Clinova is",
+          "body": "Clinova is booking software. The clinic provides your treatment and is responsible for it; Clinova is not a healthcare provider."
+        },
+        "booking": {
+          "title": "Your booking",
+          "body": "A booking is confirmed straight away. Please use your real name and a mobile number the clinic can reach. The clinic may contact you to move or cancel an appointment if it has to, and may cancel bookings that look fake."
+        },
+        "payment": {
+          "title": "Payment",
+          "body": "Prices are shown for information. Nothing is charged online: you pay at the clinic, and the clinic's final price applies."
+        },
+        "noAdvice": {
+          "title": "No medical advice",
+          "body": "Nothing on Clinova is medical advice. In an emergency, contact emergency services or go to the nearest hospital."
+        },
+        "clinics": {
+          "title": "For clinics",
+          "body": "Each clinic is responsible for the accuracy of its services, prices, hours and dentists, for its staff accounts, and for using patients' details only to manage their appointments."
+        },
+        "availability": {
+          "title": "Availability",
+          "body": "We work to keep Clinova running and your information safe, but we cannot promise it will always be available or free of errors. If online booking is unavailable, please call the clinic."
+        },
+        "privacy": {
+          "title": "Your information",
+          "body": "How your information is used is explained in the privacy notice."
+        },
+        "changes": {
+          "title": "Changes",
+          "body": "We may update these terms. The date at the top shows the latest version."
+        }
+      }
+    }
   }
 }

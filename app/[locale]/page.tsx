@@ -10,6 +10,7 @@ import { resolveLocale } from "@/lib/i18n/server";
 export default async function HomePage() {
   const locale = await resolveLocale();
   const t = await getTranslations("Home");
+  const tl = await getTranslations("Legal");
   const otherLocale = locale === "en" ? "ar" : "en";
 
   return (
@@ -39,6 +40,11 @@ export default async function HomePage() {
           </Link>
         </section>
       </div>
+
+      <footer className="mt-auto flex gap-4 border-t pt-4 text-xs opacity-70">
+        <Link href="/privacy" className="underline">{tl("privacyLink")}</Link>
+        <Link href="/terms" className="underline">{tl("termsLink")}</Link>
+      </footer>
     </main>
   );
 }
