@@ -14,7 +14,8 @@ import { expect, signIn, t, test } from "./support/fixtures";
  * are entered in Arabic by the seed, so they must not trip this. Brand names
  * stay Latin on purpose.
  */
-const ALLOWED = new Set(["Clinova", "Google"]);
+// "QR" is how Arabic itself names the code ("رمز QR"), like a brand name.
+const ALLOWED = new Set(["Clinova", "Google", "QR"]);
 async function latinWords(page: Page) {
   const text = await page.locator("main").last().evaluate((main) => {
     let all = (main as HTMLElement).innerText;
