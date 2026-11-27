@@ -64,6 +64,13 @@
       "when": 1795790444555,
       "tag": "0008_patient_erasure",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795791091976,
+      "tag": "0009_app_role_grants",
+      "breakpoints": true
     }
   ]
 }

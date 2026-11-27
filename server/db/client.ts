@@ -38,7 +38,11 @@ function withStrictSsl(url: string | undefined) {
  * unaffected — drizzle-kit connects with DATABASE_URL_UNPOOLED, not this pool.
  */
 const pool = new Pool({
-  connectionString: withStrictSsl(process.env.DATABASE_URL),
+  // APP_DATABASE_URL is the non-owner `clinova_app` role (Phase 9b): it can't
+  // rewrite or erase the audit log. DATABASE_URL (the owner, managed by the
+  // Vercel–Neon integration) is only the fallback until that variable is set;
+  // migrations and scripts always use DATABASE_URL_UNPOOLED, the owner.
+  connectionString: withStrictSsl(process.env.APP_DATABASE_URL || process.env.DATABASE_URL),
   max: 5, // per function instance; PgBouncer multiplexes behind it
   // Waiting for a usable connection.
   connectionTimeoutMillis: 5_000,
