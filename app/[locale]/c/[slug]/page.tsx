@@ -7,6 +7,7 @@ import { BookingWizard } from "@/components/booking/booking-wizard";
 import type { PublicDentist, PublicService } from "@/components/booking/types";
 import { COUNTRIES, countryOf } from "@/lib/countries";
 import { clinicMoney } from "@/lib/i18n/format";
+import { Link } from "@/lib/i18n/navigation";
 import { resolveLocale } from "@/lib/i18n/server";
 import { findPublicClinic, loadPublicCatalogue } from "@/server/db/repositories/public-clinic";
 
@@ -19,6 +20,10 @@ export default async function PublicClinicPage({ params }: PageProps<"/[locale]/
       <Suspense fallback={<p className="opacity-60">{t("loading")}</p>}>
         <ClinicBody params={params} locale={locale} />
       </Suspense>
+      <footer className="mt-auto flex gap-4 border-t pt-4 text-xs opacity-70">
+        <Link href="/privacy" className="underline">{t("privacyLink")}</Link>
+        <Link href="/terms" className="underline">{t("termsLink")}</Link>
+      </footer>
     </main>
   );
 }

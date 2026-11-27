@@ -315,7 +315,13 @@ export function BookingWizard({
           </label>
           <label className='flex items-start gap-2 text-sm'>
             <input type='checkbox' name='consent' required className='mt-1' />
-            <span>{t("consent", { clinic: clinic.name })}</span>
+            <span>
+              {t("consent", { clinic: clinic.name })}{" "}
+              {/* New tab: following the link must not throw away the half-filled booking. */}
+              <a href={`/${locale}/privacy`} target='_blank' rel='noopener' className='underline'>
+                {t("privacyLink")}
+              </a>
+            </span>
           </label>
 
           {state && !state.ok && (
