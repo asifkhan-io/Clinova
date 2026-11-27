@@ -432,7 +432,8 @@
       "completed": "Completed",
       "cancelled": "Cancelled",
       "no_show": "No-show"
-    }
+    },
+    "erasedPatient": "Erased patient"
   },
   "AppointmentForm": {
     "service": "Service",
@@ -475,7 +476,9 @@
     "started": "This appointment has already started. Mark it completed or no-show instead.",
     "not_started": "You can mark the outcome once the appointment has started.",
     "phone_taken": "Another patient record already has this number.",
-    "too_late": "That can only be corrected on the day of the appointment itself."
+    "too_late": "That can only be corrected on the day of the appointment itself.",
+    "erased": "This patient's data was erased, so a new link can't be sent.",
+    "already_anonymized": "This patient's data has already been erased."
   },
   "AppointmentAdmin": {
     "title": "Appointment",
@@ -522,7 +525,9 @@
       "completed": "Completed",
       "cancelled": "Cancelled",
       "no_show": "No-show"
-    }
+    },
+    "erasedPatient": "Erased patient",
+    "erasedNote": "This patient's data was erased at their request, so there is no number to call or message."
   },
   "Patients": {
     "title": "Patients",
@@ -552,6 +557,22 @@
       "completed": "Completed",
       "cancelled": "Cancelled",
       "no_show": "No-show"
+    },
+    "erasedName": "Erased patient",
+    "erasedNotice": "This patient's name and number were erased on {date} at their request. Their past appointments stay in the clinic's history without personal details.",
+    "eraseTitle": "Erase patient data",
+    "eraseExplain": "Use this only when the patient asks for their data to be erased. It can't be undone.",
+    "eraseEffectName": "Their name and mobile number are removed for good.",
+    "eraseEffectUpcoming": "Their upcoming appointments are cancelled.",
+    "eraseEffectLinks": "Every private link they were sent stops working.",
+    "eraseEffectHistory": "Past appointments stay in the history, without their details.",
+    "eraseCheckbox": "The patient asked for this, and I understand it can't be undone.",
+    "eraseConfirm": "Erase this patient's data now? This can't be undone.",
+    "eraseButton": "Erase patient data",
+    "erasing": "Erasing…",
+    "eraseErrors": {
+      "not_found": "This patient record no longer exists.",
+      "already_anonymized": "This patient's data has already been erased."
     }
   },
   "Email": {

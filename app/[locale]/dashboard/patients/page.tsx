@@ -7,7 +7,7 @@ import { Link } from "@/lib/i18n/navigation";
 import { resolveLocale } from "@/lib/i18n/server";
 import { requireClinicPage } from "@/server/auth/page-guards";
 import { getOwnClinic } from "@/server/db/repositories/clinics";
-import { searchPatients } from "@/server/db/repositories/patients";
+import { isErasedPhone, searchPatients } from "@/server/db/repositories/patients";
 
 const LIMIT = 50;
 
@@ -49,8 +49,14 @@ async function PatientsBody({ locale, searchParams }: { locale: Locale; searchPa
         {rows.map((p) => (
           <li key={p.id}>
             <Link href={`/dashboard/patients/${p.id}`} className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg border p-3 hover:bg-black/5">
-              <span className="font-medium">{p.fullName}</span>
-              <span dir="ltr" className="text-sm opacity-80">{p.phoneE164}</span>
+              {isErasedPhone(p.phoneE164) ? (
+                <span className="font-medium opacity-70">{t("erasedName")}</span>
+              ) : (
+                <>
+                  <span className="font-medium">{p.fullName}</span>
+                  <span dir="ltr" className="text-sm opacity-80">{p.phoneE164}</span>
+                </>
+              )}
               <span className="w-full text-sm opacity-70">
                 {t("appointments", { count: p.appointmentCount })}
                 {p.lastStartAt && ` · ${t("lastVisit", { date: clinicDay(locale, tz, p.lastStartAt) })}`}

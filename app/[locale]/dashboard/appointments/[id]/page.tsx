@@ -16,6 +16,7 @@ import { whatsappLink } from "@/lib/whatsapp";
 import { requireClinicPage } from "@/server/auth/page-guards";
 import { getAppointment } from "@/server/db/repositories/clinic-appointments";
 import { getOwnClinic } from "@/server/db/repositories/clinics";
+import { isErasedPhone } from "@/server/db/repositories/patients";
 import { canUndoOutcome, staffActionsFor } from "@/server/services/staff-appointments";
 
 type Props = PageProps<"/[locale]/dashboard/appointments/[id]">;
@@ -49,6 +50,8 @@ async function AppointmentBody({ locale, params }: { locale: Locale; params: Pro
   const can = staffActionsFor(a);
   const day = localDate(a.startAt.getTime(), tz);
   const canUndo = canUndoOutcome(a, ctx.role, tz);
+  // An erased patient (Phase 9d) has no real name or number: nothing to call, message or send a link to.
+  const erased = isErasedPhone(a.patient.phoneE164);
 
   // The reminder is offered in both languages: we don't know the patient's.
   const reminder = async (lang: "en" | "ar") => {
@@ -68,7 +71,7 @@ async function AppointmentBody({ locale, params }: { locale: Locale; params: Pro
       <header className="flex flex-col gap-2">
         <Link href={`/dashboard/calendar?view=day&date=${day}`} className="self-start text-sm underline">{t("back")}</Link>
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold">{a.patient.fullName}</h1>
+          <h1 className="text-2xl font-semibold">{erased ? t("erasedPatient") : a.patient.fullName}</h1>
           <StatusBadge status={a.status} label={t(`status.${a.status}`)} />
         </div>
       </header>
@@ -84,7 +87,7 @@ async function AppointmentBody({ locale, params }: { locale: Locale; params: Pro
         <dt className="opacity-70">{t("dentist")}</dt>
         <dd>{pick(a.staff.nameEn, a.staff.nameAr)}</dd>
         <dt className="opacity-70">{t("phone")}</dt>
-        <dd><a href={`tel:${a.patient.phoneE164}`} dir="ltr" className="underline">{a.patient.phoneE164}</a></dd>
+        <dd>{erased ? <span className="opacity-70">{t("erasedNote")}</span> : <a href={`tel:${a.patient.phoneE164}`} dir="ltr" className="underline">{a.patient.phoneE164}</a>}</dd>
         <dt className="opacity-70">{t("booked")}</dt>
         <dd>
           {a.source === "online" ? t("sourceOnline") : t("sourceStaff")}
@@ -95,10 +98,10 @@ async function AppointmentBody({ locale, params }: { locale: Locale; params: Pro
 
       <div className="flex flex-wrap gap-2">
         <Link href={`/dashboard/patients/${a.patient.id}`} className="rounded-md border px-4 py-2">{t("openRecord")}</Link>
-        <a href={`tel:${a.patient.phoneE164}`} className="rounded-md border px-4 py-2">{t("call")}</a>
+        {!erased && <a href={`tel:${a.patient.phoneE164}`} className="rounded-md border px-4 py-2">{t("call")}</a>}
       </div>
 
-      {a.status === "booked" && (
+      {a.status === "booked" && !erased && (
         <section className="flex flex-col gap-2">
           <h2 className="font-semibold">{t("remind")}</h2>
           <div className="flex flex-wrap gap-2">
@@ -108,7 +111,7 @@ async function AppointmentBody({ locale, params }: { locale: Locale; params: Pro
         </section>
       )}
 
-      {a.status === "booked" && (
+      {a.status === "booked" && !erased && (
         <ReissueLinkButton
           appointmentId={a.id}
           phoneE164={a.patient.phoneE164}

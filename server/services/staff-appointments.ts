@@ -124,7 +124,7 @@ export async function todaySummary(ctx: ClinicContext, timeZone: string, nowMs: 
   return { count: active.length, next };
 }
 
-export type ReissueLinkOutcome = { ok: true; token: string } | { ok: false; reason: "not_found" | "changed" };
+export type ReissueLinkOutcome = { ok: true; token: string } | { ok: false; reason: "not_found" | "changed" | "erased" };
 
 /**
  * A fresh private link for an existing booking (Phase 8b). The staff booking
