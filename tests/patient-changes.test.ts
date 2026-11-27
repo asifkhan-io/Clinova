@@ -7,6 +7,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { appointments, auditLog, clinics } from "@/db/schema";
 import { createTestDb } from "./helpers/db";
+import { expectNoPii } from "./helpers/pii";
 
 const { db } = await createTestDb();
 vi.mock("@/server/db/client", () => ({ db }));
@@ -118,7 +119,7 @@ describe("patient reschedule (flows §7)", () => {
     const [event] = await db.select().from(auditLog).where(and(eq(auditLog.entityId, id), eq(auditLog.action, "appointment.rescheduled")));
     expect(event).toMatchObject({ actorType: "patient", actorUserId: null });
     expect(event!.metadata).toMatchObject({ from: { startAt: new Date(at(9)).toISOString() }, to: { startAt: new Date(at(11)).toISOString() } });
-    expect(JSON.stringify(event!.metadata)).not.toMatch(/Noura|966/);
+    expectNoPii(event!.metadata, "Noura");
   });
 
   it("the old time is free again for the next patient", async () => {
@@ -181,7 +182,7 @@ describe("patient cancel (flows §8)", () => {
     expect(cancelled.cancelledAt?.getTime()).toBe(late);
     const [event] = await db.select().from(auditLog).where(and(eq(auditLog.entityId, id), eq(auditLog.action, "appointment.cancelled")));
     expect(event).toMatchObject({ actorType: "patient" });
-    expect(JSON.stringify(event!.metadata)).not.toMatch(/Noura|966/);
+    expectNoPii(event!.metadata, "Noura");
   });
 
   it("the link still opens and shows the cancelled state, with nothing left to change", async () => {
