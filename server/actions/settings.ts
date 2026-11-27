@@ -2,9 +2,9 @@
 
 import type { AuthErrorCode } from "@/server/auth/errors";
 import { requireClinicAccess } from "@/server/auth/guards";
-import { setBookingEnabled, updateBookingRules, updateClinicProfile } from "@/server/db/repositories/clinics";
+import { getClinicCountry, setBookingEnabled, updateBookingRules, updateClinicProfile } from "@/server/db/repositories/clinics";
 import { getSetupChecklist } from "@/server/services/onboarding";
-import { bookingRulesSchema, clinicProfileSchema } from "@/lib/validation/clinic-settings";
+import { bookingRulesSchema, clinicProfileSchemaFor } from "@/lib/validation/clinic-settings";
 import { type ActionResult, authFailure } from "./result";
 
 export type SettingsActionError = AuthErrorCode | "invalid_input" | "phone" | "maps_url" | "not_ready";
@@ -19,7 +19,7 @@ export async function saveProfileAction(_prev: Result | null, form: FormData): P
   } catch (e) {
     return authFailure(e);
   }
-  const parsed = clinicProfileSchema.safeParse(Object.fromEntries(
+  const parsed = clinicProfileSchemaFor(await getClinicCountry(ctx)).safeParse(Object.fromEntries(
     ["nameEn", "nameAr", "addressEn", "addressAr", "phone", "mapsUrl", "timezone"].map((k) => [k, form.get(k) ?? ""]),
   ));
   if (!parsed.success) {

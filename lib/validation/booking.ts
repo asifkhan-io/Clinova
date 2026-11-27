@@ -18,6 +18,19 @@ export function normalisePhone(raw: string, country: CountryCode): string | null
   return /^\+[1-9]\d{7,14}$/.test(intl) ? intl : null;
 }
 
+/**
+ * The clinic's own number (Settings), which is often a landline: Islamabad
+ * 051 1234567, Riyadh 011 1234567. Both markets write national numbers with a
+ * leading 0 (trunk prefix), so a single 0 is replaced by the clinic's dial
+ * code; "00" and "+" mean international. Shown to patients, never a lookup key,
+ * so this is deliberately looser than the patient mobile rule above.
+ */
+export function normaliseClinicPhone(raw: string, country: CountryCode): string | null {
+  const v = raw.replace(/[\s\-().]/g, "");
+  const intl = v.startsWith("00") ? `+${v.slice(2)}` : /^0[1-9]/.test(v) ? `+${COUNTRIES[country].dialCode}${v.slice(1)}` : v;
+  return /^\+[1-9]\d{7,14}$/.test(intl) ? intl : null;
+}
+
 /** A phone as typed by a patient or a receptionist; parses to E.164 or fails with "phone". */
 export const phoneFieldFor = (country: CountryCode) =>
   z.string().transform((v, ctx) => {

@@ -37,7 +37,9 @@ async function ClinicBody({ params, locale }: { params: PageProps<"/[locale]/c/[
   const country = countryOf(clinic.country);
   const t = await getTranslations({ locale, namespace: "Booking" });
   const ar = locale === "ar";
-  const pick = (en: string | null, arText: string | null) => (ar ? arText || en : en);
+  // Either language may be blank (addresses, descriptions, titles are optional
+  // in both; Arabic names too since scope §13): fall back to the other one.
+  const pick = (en: string | null, arText: string | null) => (ar ? arText || en : en || arText);
   const name = pick(clinic.nameEn, clinic.nameAr)!;
   const address = pick(clinic.addressEn, clinic.addressAr);
 
