@@ -37,6 +37,15 @@ function withStrictSsl(url: string | undefined) {
  * few seconds to wake, so these catch a stall, not a slow start. Migrations are
  * unaffected — drizzle-kit connects with DATABASE_URL_UNPOOLED, not this pool.
  */
+/**
+ * Overridable for local development only: from a laptop in Pakistan to Neon in
+ * Singapore, a waking compute plus a slow link can need more than 10s (finding
+ * F3, seen 2026-11-27). Set DB_QUERY_TIMEOUT_MS=30000 in .env.local if that
+ * happens. Production leaves it unset: the app and the database share a
+ * region there, and a short deadline is what turns a stall into an error page.
+ */
+const queryTimeoutMs = Number(process.env.DB_QUERY_TIMEOUT_MS) || 10_000;
+
 const pool = new Pool({
   // APP_DATABASE_URL is the non-owner `clinova_app` role (Phase 9b): it can't
   // rewrite or erase the audit log. DATABASE_URL (the owner, managed by the
@@ -45,11 +54,11 @@ const pool = new Pool({
   connectionString: withStrictSsl(process.env.APP_DATABASE_URL || process.env.DATABASE_URL),
   max: 5, // per function instance; PgBouncer multiplexes behind it
   // Waiting for a usable connection.
-  connectionTimeoutMillis: 5_000,
+  connectionTimeoutMillis: Math.max(5_000, Math.round(queryTimeoutMs / 2)),
   idleTimeoutMillis: 30_000,
   // Server-side cancel, then the client's own belt-and-braces deadline.
-  statement_timeout: 10_000,
-  query_timeout: 10_000,
+  statement_timeout: queryTimeoutMs,
+  query_timeout: queryTimeoutMs,
   // A transaction abandoned mid-flight holds its FOR UPDATE locks until this
   // fires, so every other request for that appointment would queue behind it.
   idle_in_transaction_session_timeout: 15_000,

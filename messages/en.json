@@ -696,5 +696,11 @@
         }
       }
     }
+  },
+  "Errors": {
+    "title": "Something went wrong",
+    "body": "We couldn't load this page just now. This is usually temporary. Please try again in a moment.",
+    "retry": "Try again",
+    "reference": "Reference: {digest}"
   }
 }
