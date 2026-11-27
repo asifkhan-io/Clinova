@@ -22,7 +22,7 @@ export function DashboardNav({ keys }: { keys: NavKey[] }) {
   const pathname = usePathname();
 
   return (
-    <nav aria-label={t("label")} className="flex gap-1 overflow-x-auto border-b pb-2">
+    <nav aria-label={t("label")} className="flex gap-1 overflow-x-auto border-b pb-2 print:hidden">
       {keys.map((key) => {
         const href = NAV_ITEMS[key];
         // A section stays highlighted on its sub-pages (a patient, a new appointment).

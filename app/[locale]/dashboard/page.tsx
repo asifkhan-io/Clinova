@@ -11,6 +11,8 @@ import { getOwnClinic } from "@/server/db/repositories/clinics";
 import { getSetupChecklist } from "@/server/services/onboarding";
 import { todaySummary } from "@/server/services/staff-appointments";
 import { clinicTime } from "@/lib/i18n/format";
+import { whatsappShareLink } from "@/lib/whatsapp";
+import { publicBookingUrl, requestOrigin } from "@/server/services/share";
 
 export default async function DashboardPage() {
   const locale = await resolveLocale();
@@ -71,6 +73,8 @@ async function ClinicSummary({ locale }: { locale: Locale }) {
   const t = await getTranslations({ locale, namespace: "Dashboard" });
   if (!clinic) return null;
   const today = await todaySummary(ctx, clinic.timezone);
+  const clinicName = (locale === "ar" ? clinic.nameAr : clinic.nameEn) || clinic.nameEn;
+  const bookingUrl = publicBookingUrl(await requestOrigin(), locale, clinic.slug);
 
   return (
     <>
@@ -93,6 +97,10 @@ async function ClinicSummary({ locale }: { locale: Locale }) {
     <section className="flex flex-col gap-2 rounded-lg border p-4">
       <h2 className="font-semibold">{t("bookingPageTitle")}</h2>
       <BookingLink path={`/${locale}/c/${clinic.slug}`} />
+      <div className="flex flex-wrap gap-2">
+        <a href={whatsappShareLink(t("shareMessage", { clinic: clinicName, url: bookingUrl }))} target="_blank" rel="noopener noreferrer" className="rounded-md border px-3 py-1.5 text-sm">{t("shareWhatsApp")}</a>
+        <Link href="/dashboard/share" className="rounded-md border px-3 py-1.5 text-sm">{t("qrPoster")}</Link>
+      </div>
       <p className={`text-sm ${clinic.bookingEnabled ? "text-green-700" : "text-amber-700"}`}>
         {clinic.bookingEnabled ? t("bookingOn") : t("bookingOff")}
       </p>
@@ -100,7 +108,7 @@ async function ClinicSummary({ locale }: { locale: Locale }) {
     {ctx.role === "clinic_owner" && <SetupChecklist steps={checklist.steps} locale={locale} />}
     <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
       <dt className="opacity-70">{t("clinic")}</dt>
-      <dd className="font-medium">{(locale === "ar" ? clinic.nameAr : clinic.nameEn) || clinic.nameEn}</dd>
+      <dd className="font-medium">{clinicName}</dd>
       <dt className="opacity-70">{t("role")}</dt>
       <dd>{t(`roles.${ctx.role}`)}</dd>
     </dl>

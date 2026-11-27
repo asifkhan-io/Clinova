@@ -42,7 +42,10 @@
     "todayCount": "{count, plural, =0 {No appointments today.} one {# appointment today.} other {# appointments today.}}",
     "nextUp": "Next:",
     "openCalendar": "Open calendar",
-    "newAppointment": "New appointment"
+    "newAppointment": "New appointment",
+    "shareWhatsApp": "Share on WhatsApp",
+    "qrPoster": "QR code & poster",
+    "shareMessage": "Book your appointment at {clinic} online: {url}"
   },
   "Admin": {
     "title": "Platform admin",
@@ -711,5 +714,20 @@
     "body": "We couldn't load this page just now. This is usually temporary. Please try again in a moment.",
     "retry": "Try again",
     "reference": "Reference: {digest}"
+  },
+  "Share": {
+    "title": "Share your booking page",
+    "loading": "Loading…",
+    "back": "Back to overview",
+    "hint": "Print this poster for the reception desk, or share the link on WhatsApp, your Google profile and Instagram. Patients scan the code with their phone camera and book in a minute.",
+    "bookingOff": "Online booking is switched off, so patients who scan will be asked to call. Switch it on in Settings first.",
+    "posterLabel": "Poster",
+    "posterHeading": "Book your appointment online",
+    "qrAlt": "QR code for the {clinic} booking page",
+    "scan": "Scan with your phone camera, or open:",
+    "print": "Print poster",
+    "download": "Download QR code",
+    "whatsapp": "Share on WhatsApp",
+    "whatsappMessage": "Book your appointment at {clinic} online: {url}"
   }
 }
