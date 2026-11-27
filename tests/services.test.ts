@@ -92,14 +92,16 @@ describe("service form validation", () => {
     expect(serviceSchema.parse({ ...form, priceMinor: "0" }).priceMinor).toBe(0);
   });
 
-  it("rejects bad prices, durations and a missing Arabic name", () => {
+  it("rejects bad prices, durations and a missing English name", () => {
     for (const priceMinor of ["-5", "abc", "1.234"]) {
       expect(serviceSchema.safeParse({ ...form, priceMinor }).success).toBe(false);
     }
     for (const durationMinutes of ["7", "0", "485"]) {
       expect(serviceSchema.safeParse({ ...form, durationMinutes, priceMinor: "" }).success).toBe(false);
     }
-    expect(serviceSchema.safeParse({ ...form, nameAr: "", priceMinor: "" }).success).toBe(false);
+    expect(serviceSchema.safeParse({ ...form, nameEn: "", priceMinor: "" }).success).toBe(false);
+    // Arabic is optional since 2026-11-27 (scope §13): blank is stored as NULL.
+    expect(serviceSchema.parse({ ...form, nameAr: "", priceMinor: "" }).nameAr).toBeNull();
   });
 
   it("stores empty descriptions as NULL, not empty strings", () => {

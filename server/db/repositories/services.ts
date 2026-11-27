@@ -4,7 +4,7 @@ import type { ClinicContext } from "./context";
 
 type ServiceFields = {
   nameEn: string;
-  nameAr: string;
+  nameAr: string | null;
   descriptionEn: string | null;
   descriptionAr: string | null;
   durationMinutes: number;

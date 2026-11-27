@@ -6,6 +6,8 @@ import { ServiceRow } from "@/components/services/service-row";
 import { clinicMoney } from "@/lib/i18n/format";
 import { resolveLocale } from "@/lib/i18n/server";
 import { requireClinicPage } from "@/server/auth/page-guards";
+import { COUNTRIES } from "@/lib/countries";
+import { getClinicCountry } from "@/server/db/repositories/clinics";
 import { listServices } from "@/server/db/repositories/services";
 
 export default async function ServicesPage() {
@@ -25,7 +27,8 @@ export default async function ServicesPage() {
 async function ServicesBody({ locale }: { locale: Locale }) {
   const ctx = await requireClinicPage(locale);
   const t = await getTranslations({ locale, namespace: "Services" });
-  const services = await listServices(ctx);
+  const [services, country] = await Promise.all([listServices(ctx), getClinicCountry(ctx)]);
+  const currency = COUNTRIES[country].currency;
   const canEdit = ctx.role === "clinic_owner" && ctx.clinicStatus !== "suspended";
   const ar = locale === "ar";
 
@@ -34,7 +37,7 @@ async function ServicesBody({ locale }: { locale: Locale }) {
       {canEdit && (
         <section className="flex flex-col gap-3 rounded-lg border p-4">
           <h2 className="font-semibold">{t("addTitle")}</h2>
-          <ServiceForm />
+          <ServiceForm currency={currency} />
         </section>
       )}
 
@@ -49,7 +52,8 @@ async function ServicesBody({ locale }: { locale: Locale }) {
               // Bilingual data: fall back to the other language rather than a blank.
               name={(ar ? s.nameAr : s.nameEn) || s.nameEn}
               description={(ar ? s.descriptionAr : s.descriptionEn) ?? (ar ? s.descriptionEn : s.descriptionAr)}
-              priceLabel={s.priceMinor == null ? t("priceOnRequest") : clinicMoney(locale, s.priceMinor)}
+              priceLabel={s.priceMinor == null ? t("priceOnRequest") : clinicMoney(locale, s.priceMinor, currency)}
+              currency={currency}
               canEdit={canEdit}
             />
           ))}

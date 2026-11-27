@@ -17,12 +17,18 @@ export function clinicNumber(locale: string) {
   return new Intl.NumberFormat(locale, { numberingSystem: "latn" });
 }
 
-/** Money is stored in minor units (halalas); SAR only in the MVP (scope §6). */
-export function clinicMoney(locale: string, minor: number) {
+/**
+ * Money is stored in minor units (halalas, paisa) in the clinic's own currency
+ * (lib/countries.ts; one currency per clinic, never converted — scope §13).
+ * Whole amounts drop the ".00": clinics price in whole riyals and rupees.
+ */
+export function clinicMoney(locale: string, minor: number, currency: string) {
   return new Intl.NumberFormat(locale, {
     style: "currency",
-    currency: "SAR",
+    currency,
     numberingSystem: "latn",
+    minimumFractionDigits: minor % 100 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
   }).format(minor / 100);
 }
 

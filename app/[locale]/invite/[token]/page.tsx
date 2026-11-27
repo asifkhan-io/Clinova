@@ -55,7 +55,7 @@ async function InviteBody({
   return (
     <>
       <p>
-        {t("intro", { clinic: locale === "ar" ? invite.clinicNameAr : invite.clinicNameEn })}
+        {t("intro", { clinic: (locale === "ar" ? invite.clinicNameAr : invite.clinicNameEn) || invite.clinicNameEn })}
       </p>
       <AcceptInviteForm token={token} email={invite.email} />
     </>

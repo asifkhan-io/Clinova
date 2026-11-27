@@ -59,7 +59,7 @@ async function AdminBody({ locale }: { locale: Locale }) {
           {clinics.map((c) => (
             <li key={c.id} className="flex flex-col gap-2 rounded-lg border p-3 text-sm">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="font-medium">{locale === "ar" ? c.nameAr : c.nameEn}</span>
+                <span className="font-medium">{(locale === "ar" ? c.nameAr : c.nameEn) || c.nameEn}</span>
                 <span dir="ltr" className="font-mono text-xs opacity-60">
                   /{c.slug}
                 </span>

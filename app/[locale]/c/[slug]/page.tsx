@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { BookingWizard } from "@/components/booking/booking-wizard";
 import type { PublicDentist, PublicService } from "@/components/booking/types";
+import { COUNTRIES, countryOf } from "@/lib/countries";
 import { clinicMoney } from "@/lib/i18n/format";
 import { resolveLocale } from "@/lib/i18n/server";
 import { findPublicClinic, loadPublicCatalogue } from "@/server/db/repositories/public-clinic";
@@ -28,9 +29,10 @@ async function ClinicBody({ params, locale }: { params: PageProps<"/[locale]/c/[
   const found = await findPublicClinic(slug);
   if (!found) notFound();
   const { clinic, scope } = found;
+  const country = countryOf(clinic.country);
   const t = await getTranslations({ locale, namespace: "Booking" });
   const ar = locale === "ar";
-  const pick = (en: string | null, arText: string | null) => (ar ? arText || en : en || arText);
+  const pick = (en: string | null, arText: string | null) => (ar ? arText || en : en);
   const name = pick(clinic.nameEn, clinic.nameAr)!;
   const address = pick(clinic.addressEn, clinic.addressAr);
 
@@ -60,7 +62,7 @@ async function ClinicBody({ params, locale }: { params: PageProps<"/[locale]/c/[
     name: pick(s.nameEn, s.nameAr)!,
     description: pick(s.descriptionEn, s.descriptionAr),
     durationMinutes: s.durationMinutes,
-    priceLabel: s.priceMinor == null ? t("priceOnRequest") : clinicMoney(locale, s.priceMinor),
+    priceLabel: s.priceMinor == null ? t("priceOnRequest") : clinicMoney(locale, s.priceMinor, COUNTRIES[country].currency),
   }));
   const dentists: PublicDentist[] = catalogue.dentists.map((d) => ({
     id: d.id,
@@ -76,7 +78,7 @@ async function ClinicBody({ params, locale }: { params: PageProps<"/[locale]/c/[
         <p className="rounded-lg border p-4">{t("noServices")}</p>
       ) : (
         <BookingWizard
-          clinic={{ slug: clinic.slug, name, timeZone: clinic.timezone, horizonDays: clinic.maxHorizonDays }}
+          clinic={{ slug: clinic.slug, name, timeZone: clinic.timezone, horizonDays: clinic.maxHorizonDays, phoneExample: COUNTRIES[country].localExample }}
           services={services}
           dentists={dentists}
         />

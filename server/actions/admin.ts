@@ -44,7 +44,8 @@ export async function createClinicAction(
   const parsed = createClinicSchema.safeParse({
     slug: form.get("slug"),
     nameEn: form.get("nameEn"),
-    nameAr: form.get("nameAr"),
+    nameAr: form.get("nameAr") ?? "",
+    country: form.get("country"),
     ownerEmail: form.get("ownerEmail"),
   });
   if (!parsed.success) return { ok: false, error: "invalid_input" };

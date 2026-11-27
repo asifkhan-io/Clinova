@@ -26,6 +26,7 @@ export function AppointmentForm({
   dentists,
   timeZone,
   clinicName,
+  phoneExample,
   initial,
   edit,
 }: {
@@ -33,6 +34,8 @@ export function AppointmentForm({
   dentists: FormDentist[];
   timeZone: string;
   clinicName: string;
+  /** A local mobile number in the clinic's country, e.g. "03XX XXXXXXX". */
+  phoneExample: string;
   initial: { serviceId?: string; staffId?: string; date: string; time?: string };
   edit?: { appointmentId: string; seq: number };
 }) {
@@ -177,8 +180,8 @@ export function AppointmentForm({
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-sm font-medium">{t("phone")}</span>
-            <input name="phone" type="tel" required inputMode="tel" autoComplete="off" dir="ltr" className={field} />
-            <span className="text-xs opacity-70">{t("phoneHint")}</span>
+            <input name="phone" type="tel" required inputMode="tel" autoComplete="off" dir="ltr" placeholder={phoneExample} className={field} />
+            <span className="text-xs opacity-70">{t("phoneHint", { example: phoneExample })}</span>
           </label>
         </div>
       )}

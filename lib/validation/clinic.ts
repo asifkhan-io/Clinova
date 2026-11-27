@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { COUNTRY_CODES } from "@/lib/countries";
+import { optionalName } from "./optional-name";
 
 // Shared by the admin form (client) and the Server Action (server). The server
 // copy is the one that counts; the client copy is only for faster feedback.
@@ -13,7 +15,9 @@ export const createClinicSchema = z.object({
     // Same rule as the clinics_slug_format CHECK constraint in the database.
     .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/),
   nameEn: z.string().trim().min(2).max(120),
-  nameAr: z.string().trim().min(2).max(120),
+  nameAr: optionalName(),
+  // Decides phone format, currency and the default timezone (lib/countries.ts).
+  country: z.enum(COUNTRY_CODES),
   ownerEmail: z.email().trim().toLowerCase(),
 });
 export type CreateClinicInput = z.infer<typeof createClinicSchema>;

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { optionalName } from "./optional-name";
 
 const optionalText = (max: number) =>
   z
@@ -7,8 +8,9 @@ const optionalText = (max: number) =>
     .max(max)
     .transform((v) => (v === "" ? null : v));
 
-/** GCC first (instructions §3). Stored as an IANA name; never a fixed offset. */
+/** The markets we serve (scope §13). Stored as an IANA name; never a fixed offset. */
 export const CLINIC_TIMEZONES = [
+  "Asia/Karachi",
   "Asia/Riyadh",
   "Asia/Dubai",
   "Asia/Kuwait",
@@ -19,7 +21,7 @@ export const CLINIC_TIMEZONES = [
 
 export const clinicProfileSchema = z.object({
   nameEn: z.string().trim().min(2).max(120),
-  nameAr: z.string().trim().min(2).max(120),
+  nameAr: optionalName(),
   addressEn: optionalText(300),
   addressAr: optionalText(300),
   // Shown to patients; same E.164 shape the patients table will require.

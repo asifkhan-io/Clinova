@@ -28,13 +28,13 @@ export type AppointmentNotice = {
   id: string;
   clinicId: string;
   clinicNameEn: string;
-  clinicNameAr: string;
+  clinicNameAr: string | null;
   timeZone: string;
   startAt: Date;
   staffNameEn: string;
-  staffNameAr: string;
+  staffNameAr: string | null;
   serviceNameEn: string;
-  serviceNameAr: string;
+  serviceNameAr: string | null;
 };
 
 const noticeColumns = {

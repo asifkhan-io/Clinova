@@ -42,7 +42,7 @@ async function PatientBody({ locale, params }: { locale: Locale; params: Props["
   const { patient, history } = record;
   const tz = clinic.timezone;
   const ar = locale === "ar";
-  const pick = (en: string, arText: string) => (ar ? arText || en : en || arText);
+  const pick = (en: string, arText: string | null) => (ar ? arText || en : en);
   const erasedAt = patient.anonymizedAt;
   const erased = erasedAt !== null;
   const canEdit = ctx.clinicStatus !== "suspended" && !erased;

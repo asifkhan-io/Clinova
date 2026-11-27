@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { phoneField } from "./booking";
+import type { CountryCode } from "@/lib/countries";
+import { phoneFieldFor } from "./booking";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 /** 24-hour wall-clock time in the clinic's zone, as <input type="time"> sends it. */
@@ -8,12 +9,13 @@ export const minutesOf = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Numbe
 
 const when = { serviceId: z.uuid(), staffId: z.uuid(), date: isoDate, time: wallTime };
 
-/** Manual booking by staff (scope §4). Shared by the form and the Server Action. */
-export const staffBookingSchema = z.object({
-  ...when,
-  fullName: z.string().trim().min(2).max(100),
-  phone: phoneField,
-});
+/** Manual booking by staff (scope §4). Phones are read in the clinic's country. */
+export const staffBookingSchemaFor = (country: CountryCode) =>
+  z.object({
+    ...when,
+    fullName: z.string().trim().min(2).max(100),
+    phone: phoneFieldFor(country),
+  });
 
 export const staffRescheduleSchema = z.object({
   ...when,
@@ -21,8 +23,9 @@ export const staffRescheduleSchema = z.object({
   expectedSequence: z.coerce.number().int().min(0),
 });
 
-export const patientEditSchema = z.object({
-  patientId: z.uuid(),
-  fullName: z.string().trim().min(2).max(100),
-  phone: phoneField,
-});
+export const patientEditSchemaFor = (country: CountryCode) =>
+  z.object({
+    patientId: z.uuid(),
+    fullName: z.string().trim().min(2).max(100),
+    phone: phoneFieldFor(country),
+  });

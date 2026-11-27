@@ -27,7 +27,7 @@ async function newClinic(slug: string, ownerEmail: string) {
   const { token, hash } = newToken();
   const clinic = await createClinicWithOwnerInvite(
     adminCtx,
-    { slug, nameEn: slug, nameAr: slug, ownerEmail },
+    { slug, nameEn: slug, nameAr: slug, country: "SA", ownerEmail },
     hash,
   );
   return { clinic, token };

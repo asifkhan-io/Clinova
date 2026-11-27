@@ -38,7 +38,7 @@ async function AppointmentBody({ params, locale }: { params: PageProps<"/[locale
 
   const { appt, changes } = found;
   const ar = locale === "ar";
-  const pick = (en: string | null, arText: string | null) => (ar ? arText || en : en || arText);
+  const pick = (en: string | null, arText: string | null) => (ar ? arText || en : en);
   const tz = appt.clinic.timezone;
   const date = new Intl.DateTimeFormat(locale, { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: tz, calendar: "gregory", numberingSystem: "latn" }).format(appt.startAt);
   const time = (d: Date) => new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit", timeZone: tz, numberingSystem: "latn" }).format(d);

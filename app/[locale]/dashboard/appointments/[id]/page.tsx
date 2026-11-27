@@ -46,7 +46,7 @@ async function AppointmentBody({ locale, params }: { locale: Locale; params: Pro
   const t = await getTranslations({ locale, namespace: "AppointmentAdmin" });
   const tz = clinic.timezone;
   const ar = locale === "ar";
-  const pick = (en: string, arText: string) => (ar ? arText || en : en || arText);
+  const pick = (en: string, arText: string | null) => (ar ? arText || en : en);
   const can = staffActionsFor(a);
   const day = localDate(a.startAt.getTime(), tz);
   const canUndo = canUndoOutcome(a, ctx.role, tz);

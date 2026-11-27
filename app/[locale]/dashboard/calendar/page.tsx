@@ -55,7 +55,7 @@ async function CalendarBody({ locale, searchParams }: { locale: Locale; searchPa
   const appointments = await listAppointments(ctx, { fromMs, toMs, staffId });
 
   const ar = locale === "ar";
-  const pick = (en: string, arText: string) => (ar ? arText || en : en || arText);
+  const pick = (en: string, arText: string | null) => (ar ? arText || en : en);
   const href = (o: { view?: string; date?: string }) => {
     const q = new URLSearchParams({ view: o.view ?? sp.view, date: o.date ?? date, ...(staffId ? { staff: staffId } : {}) });
     return `/dashboard/calendar?${q}`;
