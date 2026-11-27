@@ -29,7 +29,10 @@ export default defineConfig({
   // The dev server compiles each route on its first visit; that can take a while.
   timeout: 120_000,
   expect: { timeout: 20_000 },
-  retries: process.env.CI ? 1 : 0,
+  // One retry: the app talks to Neon over the internet (Singapore), and a single
+  // slow connection can fail a page. A test that only passes on retry is
+  // reported as "flaky", not hidden, so a real problem still shows.
+  retries: 1,
   reporter: [["list"]],
   globalSetup: "./tests/e2e/support/global-setup.ts",
   globalTeardown: "./tests/e2e/support/global-teardown.ts",
