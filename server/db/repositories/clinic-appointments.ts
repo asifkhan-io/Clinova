@@ -1,4 +1,5 @@
 import { and, asc, eq, gte, lt, sql } from "drizzle-orm";
+import { retryOnDeadlock } from "../retry";
 import { appointments, auditLog, patients, services, staff } from "../../../db/schema";
 import { isDoubleBooking } from "./appointments";
 import type { ClinicContext } from "./context";
@@ -68,7 +69,7 @@ export async function insertStaffBooking(
   input: { staffId: string; serviceId: string; startMs: number; endMs: number; fullName: string; phoneE164: string; accessTokenHash: string },
 ): Promise<InsertStaffBookingResult> {
   try {
-    return await ctx.db.transaction(async (tx) => {
+    return await retryOnDeadlock(() => ctx.db.transaction(async (tx) => {
       const [patient] = await tx
         .insert(patients)
         .values({ clinicId: ctx.clinicId, fullName: input.fullName, phoneE164: input.phoneE164 })
@@ -107,7 +108,7 @@ export async function insertStaffBooking(
         metadata: { patientId: patient.id, staffId: input.staffId, serviceId: input.serviceId, startAt: new Date(input.startMs).toISOString(), source: "staff" },
       });
       return { ok: true, appointmentId: appointment.id, patientId: patient.id } as const;
-    });
+    }));
   } catch (error) {
     if (isDoubleBooking(error)) return { ok: false, reason: "slot_taken" };
     throw error;
@@ -216,7 +217,7 @@ export async function undoAppointmentOutcome(
   input: { appointmentId: string; nowMs: number; allowedUntilMs: number },
 ): Promise<UndoOutcomeResult> {
   try {
-    return await ctx.db.transaction(async (tx) => {
+    return await retryOnDeadlock(() => ctx.db.transaction(async (tx) => {
       const [current] = await tx
         .select({ status: appointments.status })
         .from(appointments)
@@ -242,7 +243,7 @@ export async function undoAppointmentOutcome(
         metadata: { from: current.status, to: "booked", undo: true },
       });
       return { ok: true } as const;
-    });
+    }));
   } catch (error) {
     if (isDoubleBooking(error)) return { ok: false, reason: "slot_taken" };
     throw error;
