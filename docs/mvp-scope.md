@@ -272,7 +272,7 @@ Scoping is closed. The build order lives in `docs/architecture.md` §5.
 **Rule that keeps Saudi a configuration change, not a rewrite.** Arabic/RTL, the generic schema and §8 stay. Anything country-specific (phone parsing, currency, timezone, which languages a clinic fills in) lives in clinic settings, never hardcoded.
 
 **Scope consequences (Week 2 of the roadmap).**
-- One currency per clinic (`SAR` | `PKR`), shown with locale formatting, **no conversion**. §6's "multi-currency" exclusion now means conversion and mixed currencies within a clinic.
-- Phone numbers are parsed with the clinic's country, so a Pakistani clinic accepts local `03…` numbers; storage stays E.164.
-- Arabic service names become optional, falling back to English on the Arabic page.
+- One currency per clinic, **derived from its country** (`SA` → SAR, `PK` → PKR; `lib/countries.ts`), shown with locale formatting, **no conversion** and no currency column. The country is set at creation and not editable, since changing it would reinterpret stored prices. §6's "multi-currency" exclusion now means conversion and mixed currencies within a clinic.
+- Phone numbers are parsed with the clinic's country (`clinics.country`, migration 0010), so a Pakistani clinic accepts local `03…` numbers; storage stays E.164.
+- Arabic names (clinic, service, dentist) become optional: NULL when blank, with English shown on the Arabic page and in emails.
 - An Islamabad demo clinic joins the seed (§5), so the sales demo matches the market.
