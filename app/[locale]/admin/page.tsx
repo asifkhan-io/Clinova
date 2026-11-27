@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { CreateClinicForm } from "@/components/admin/create-clinic-form";
 import { ReissueInviteButton } from "@/components/admin/reissue-invite-button";
 import { BookingLink } from "@/components/ui/booking-link";
+import { countryOf } from "@/lib/countries";
 import { Link, redirect } from "@/lib/i18n/navigation";
 import { resolveLocale } from "@/lib/i18n/server";
 import { AuthError } from "@/server/auth/errors";
@@ -66,6 +67,7 @@ async function AdminBody({ locale }: { locale: Locale }) {
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 opacity-80">
                 <span>{t(`status.${c.status}`)}</span>
+                <span>{t(`countries.${countryOf(c.country)}`)}</span>
                 {c.ownerEmail ? (
                   <span>
                     {t("owner")}: <span dir="ltr">{c.ownerEmail}</span>

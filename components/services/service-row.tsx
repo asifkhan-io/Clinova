@@ -11,12 +11,12 @@ type Props = {
   name: string;
   description: string | null;
   priceLabel: string;
-  /** The clinic's currency code, for the edit form's price label. */
-  currency: string;
+  /** The clinic's currency, named in the page's language, for the edit form's price label. */
+  currencyLabel: string;
   canEdit: boolean;
 };
 
-export function ServiceRow({ service, name, description, priceLabel, currency, canEdit }: Props) {
+export function ServiceRow({ service, name, description, priceLabel, currencyLabel, canEdit }: Props) {
   const t = useTranslations("Services");
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -69,7 +69,7 @@ export function ServiceRow({ service, name, description, priceLabel, currency, c
       {toggleState && !toggleState.ok && (
         <p role="alert" className="text-sm text-red-600">{t(`errors.${toggleState.error}`)}</p>
       )}
-      {editing && <ServiceForm currency={currency} service={service} onDone={() => setEditing(false)} />}
+      {editing && <ServiceForm currencyLabel={currencyLabel} service={service} onDone={() => setEditing(false)} />}
     </li>
   );
 }

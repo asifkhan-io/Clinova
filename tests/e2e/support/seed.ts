@@ -18,6 +18,8 @@ export type Seed = {
   ready: { id: string; slug: string; nameEn: string; nameAr: string; service: { id: string; nameEn: string; nameAr: string }; dentists: { id: string; nameEn: string; nameAr: string }[] };
   /** Empty clinic: the owner sets it up through the UI. */
   fresh: { id: string; slug: string; nameEn: string };
+  /** A Pakistani clinic (scope §13): PKR prices, local 03… numbers, no Arabic names at all. */
+  pk: { id: string; slug: string; nameEn: string; service: { id: string; nameEn: string }; dentist: { id: string; nameEn: string } };
   users: {
     owner: { email: string; clinic: "ready" };
     staff: { email: string; clinic: "ready" };
@@ -84,6 +86,32 @@ export async function seed(db: pg.Client, runId: string): Promise<Seed> {
       await db.query("insert into clinic_hours (clinic_id, day_of_week, start_minute, end_minute) values ($1, $2, 480, 1320)", [readyId, day]);
     }
 
+    const pk = { slug: `e2e-pk-${runId}`, nameEn: `E2E Islamabad ${runId}` };
+    const { rows: c3 } = await db.query<{ id: string }>(
+      `insert into clinics (slug, name_en, name_ar, country, timezone, booking_enabled,
+         buffer_minutes, min_lead_minutes, max_horizon_days, change_cutoff_minutes, slot_granularity_minutes)
+       values ($1, $2, null, 'PK', 'Asia/Karachi', true, 0, 0, 60, 0, 30) returning id`,
+      [pk.slug, pk.nameEn],
+    );
+    const pkId = c3[0]!.id;
+    const pkService = { nameEn: "Scaling" };
+    const { rows: ps } = await db.query<{ id: string }>(
+      "insert into services (clinic_id, name_en, name_ar, duration_minutes, price_minor) values ($1, $2, null, 30, 150000) returning id",
+      [pkId, pkService.nameEn],
+    );
+    const pkDentist = { nameEn: "Dr Ayesha" };
+    const { rows: pd } = await db.query<{ id: string }>(
+      "insert into staff (clinic_id, display_name_en, display_name_ar) values ($1, $2, null) returning id",
+      [pkId, pkDentist.nameEn],
+    );
+    await db.query("insert into staff_services (clinic_id, staff_id, service_id) values ($1, $2, $3)", [pkId, pd[0]!.id, ps[0]!.id]);
+    for (let day = 0; day < 7; day++) {
+      await db.query(
+        "insert into staff_hours (clinic_id, staff_id, day_of_week, start_minute, end_minute) values ($1, $2, $3, 480, 1320)",
+        [pkId, pd[0]!.id, day],
+      );
+    }
+
     const fresh = { slug: `e2e-fresh-${runId}`, nameEn: `E2E Fresh ${runId}` };
     const { rows: c2 } = await db.query<{ id: string }>(
       "insert into clinics (slug, name_en, name_ar) values ($1, $2, $3) returning id",
@@ -104,6 +132,7 @@ export async function seed(db: pg.Client, runId: string): Promise<Seed> {
       runId,
       ready: { id: readyId, ...ready, service: { id: s[0]!.id, ...service }, dentists: dentistRows },
       fresh: { id: freshId, ...fresh },
+      pk: { id: pkId, ...pk, service: { id: ps[0]!.id, ...pkService }, dentist: { id: pd[0]!.id, ...pkDentist } },
       users: {
         owner: { email: email("owner"), clinic: "ready" },
         staff: { email: email("staff"), clinic: "ready" },

@@ -1,7 +1,7 @@
 import { attachDatabasePool } from "@vercel/functions";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
 import * as schema from "../../db/schema";
+import { ResilientPool } from "./pool";
 
 /**
  * The ONLY place a database connection is created (architecture §3.1).
@@ -46,7 +46,8 @@ function withStrictSsl(url: string | undefined) {
  */
 const queryTimeoutMs = Number(process.env.DB_QUERY_TIMEOUT_MS) || 10_000;
 
-const pool = new Pool({
+// ResilientPool: opening a connection is retried once while Neon wakes (server/db/pool.ts).
+const pool = new ResilientPool({
   // APP_DATABASE_URL is the non-owner `clinova_app` role (Phase 9b): it can't
   // rewrite or erase the audit log. DATABASE_URL (the owner, managed by the
   // Vercel–Neon integration) is only the fallback until that variable is set;
