@@ -7,6 +7,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { appointments, auditLog, clinics, patients, users } from "@/db/schema";
 import { createTestDb } from "./helpers/db";
+import { expectNoPii } from "./helpers/pii";
 
 const { db } = await createTestDb();
 vi.mock("@/server/db/client", () => ({ db }));
@@ -74,7 +75,7 @@ describe("manual booking (scope §4)", () => {
     expect((await getPatientAppointment(hashToken(r.token), NOW))?.appt.status).toBe("booked"); // the link works
     const [event] = await db.select().from(auditLog).where(eq(auditLog.entityId, r.appointmentId));
     expect(event).toMatchObject({ action: "appointment.created", actorType: "member", actorUserId: ctx.userId });
-    expect(JSON.stringify(event!.metadata)).not.toMatch(/Fahad|966/);
+    expectNoPii(event!.metadata, "Fahad");
   });
 
   it("stores no online-consent stamp for a patient the clinic registered itself", async () => {

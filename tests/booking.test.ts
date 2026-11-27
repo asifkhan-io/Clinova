@@ -9,6 +9,7 @@ import { eq } from "drizzle-orm";
 import { appointments, auditLog, clinics, patients } from "@/db/schema";
 import { bookingSchema, normalisePhone } from "@/lib/validation/booking";
 import { createTestDb } from "./helpers/db";
+import { expectNoPii } from "./helpers/pii";
 
 const { db } = await createTestDb();
 vi.mock("@/server/db/client", () => ({ db }));
@@ -62,7 +63,7 @@ describe("online booking", () => {
 
     const [event] = await db.select().from(auditLog).where(eq(auditLog.entityId, r.appointmentId));
     expect(event!.action).toBe("appointment.created");
-    expect(JSON.stringify(event!.metadata)).not.toMatch(/Noura|966/);
+    expectNoPii(event!.metadata, "Noura");
   });
 
   it("refuses the same slot again, and a time that was never offered", async () => {
