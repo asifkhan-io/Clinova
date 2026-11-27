@@ -75,7 +75,6 @@ export async function insertStaffBooking(
         .values({ clinicId: ctx.clinicId, fullName: input.fullName, phoneE164: input.phoneE164 })
         .onConflictDoUpdate({
           target: [patients.clinicId, patients.phoneE164],
-          targetWhere: sql`${patients.anonymizedAt} IS NULL`, // the partial unique index (erasure)
           set: { updatedAt: sql`now()` },
         })
         .returning({ id: patients.id });

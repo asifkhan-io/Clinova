@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomInt } from "node:crypto";
 import { and, asc, count, desc, eq, gt, ilike, isNull, like, max, or, sql } from "drizzle-orm";
 import { appointments, auditLog, patients, services, staff } from "../../../db/schema";
 import type { ClinicContext } from "./context";
@@ -112,8 +112,15 @@ export async function updatePatient(ctx: ClinicContext, patientId: string, input
 
 /** What an erased record holds instead of the patient's name and number. */
 export const ERASED_NAME = "—";
-/** +999 is not an assigned country code, so this can never reach a real phone. Satisfies the E.164 check. */
-export const ERASED_PHONE = "+99900000000";
+/**
+ * What an erased record holds instead of the phone number: +999 (not an
+ * assigned country code, so it can never reach a real phone) and 11 random
+ * digits, unique per record so the one-patient-per-phone index never collides.
+ * Satisfies the E.164 check.
+ */
+export const ERASED_PHONE_PREFIX = "+999";
+const erasedPhone = () => ERASED_PHONE_PREFIX + Array.from({ length: 11 }, () => randomInt(10)).join("");
+export const isErasedPhone = (phoneE164: string) => phoneE164.startsWith(ERASED_PHONE_PREFIX);
 
 export type AnonymizePatientResult =
   | { ok: true; cancelledUpcoming: number }
@@ -145,7 +152,7 @@ export async function anonymizePatient(ctx: ClinicContext, patientId: string, no
     const now = new Date(nowMs);
     await tx
       .update(patients)
-      .set({ fullName: ERASED_NAME, phoneE164: ERASED_PHONE, consentAt: null, consentPolicyVersion: null, anonymizedAt: now, updatedAt: now })
+      .set({ fullName: ERASED_NAME, phoneE164: erasedPhone(), consentAt: null, consentPolicyVersion: null, anonymizedAt: now, updatedAt: now })
       .where(and(eq(patients.id, patientId), eq(patients.clinicId, ctx.clinicId)));
 
     const mine = and(eq(appointments.clinicId, ctx.clinicId), eq(appointments.patientId, patientId));

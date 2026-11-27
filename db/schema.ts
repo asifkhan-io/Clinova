@@ -512,9 +512,9 @@ export const patients = pgTable(
   },
   (t) => [
     // One patient per phone per clinic — the booking flow's upsert targets this.
-    // Partial: erased records all share one placeholder number, and a person who
-    // was erased and books again must get a fresh record, not the erased one.
-    uniqueIndex("patients_clinic_phone_key").on(t.clinicId, t.phoneE164).where(sql`${t.anonymizedAt} IS NULL`),
+    // Erased records get a unique unassigned +999 number, so they never collide
+    // here, and a person who was erased and books again gets a fresh record.
+    uniqueIndex("patients_clinic_phone_key").on(t.clinicId, t.phoneE164),
     uniqueIndex("patients_clinic_id_key").on(t.clinicId, t.id), // composite-FK target
     check("patients_phone_e164", sql`${t.phoneE164} ~ '^\\+[1-9][0-9]{7,14}$'`),
   ],

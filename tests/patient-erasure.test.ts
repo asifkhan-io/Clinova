@@ -75,7 +75,9 @@ describe("erasing a patient", () => {
   it("overwrites name and phone, clears consent, and keeps the row", async () => {
     expect(await patientsRepo.anonymizePatient(ctx, nouraId, ERASE_AT)).toEqual({ ok: true, cancelledUpcoming: 1 });
     const p = await patientRow(nouraId);
-    expect(p).toMatchObject({ fullName: patientsRepo.ERASED_NAME, phoneE164: patientsRepo.ERASED_PHONE, consentAt: null, consentPolicyVersion: null });
+    expect(p).toMatchObject({ fullName: patientsRepo.ERASED_NAME, consentAt: null, consentPolicyVersion: null });
+    expect(patientsRepo.isErasedPhone(p.phoneE164)).toBe(true);
+    expect(p.phoneE164).toMatch(/^\+999\d{11}$/);
     expect(p.anonymizedAt?.getTime()).toBe(ERASE_AT);
     expect(JSON.stringify(p)).not.toMatch(/Noura|512345678/);
   });
@@ -121,11 +123,12 @@ describe("erasing a patient", () => {
     expect((await patientRow(nouraId)).fullName).toBe(patientsRepo.ERASED_NAME);
   });
 
-  it("several erased patients can coexist (the phone rule ignores erased records)", async () => {
+  it("several erased patients can coexist, each with their own placeholder number", async () => {
     const [someone] = await db.select({ id: patients.id }).from(patients).where(eq(patients.phoneE164, "+966500000009"));
     expect((await patientsRepo.anonymizePatient(ctx, someone!.id, ERASE_AT)).ok).toBe(true);
-    const erased = await db.select().from(patients).where(and(eq(patients.clinicId, ctx.clinicId), eq(patients.phoneE164, patientsRepo.ERASED_PHONE)));
-    expect(erased.length).toBeGreaterThanOrEqual(2);
+    const erased = (await db.select().from(patients).where(eq(patients.clinicId, ctx.clinicId))).filter((p) => p.anonymizedAt);
+    expect(erased.length).toBe(2);
+    expect(new Set(erased.map((p) => p.phoneE164)).size).toBe(2);
   });
 
   it("the database still refuses two live records with one phone", async () => {

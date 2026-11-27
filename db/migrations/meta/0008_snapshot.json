@@ -1,5 +1,5 @@
 {
-  "id": "fd7e080f-0a5d-420f-b404-1457544c8ba8",
+  "id": "01d8ee20-6cb6-4ee6-81f9-ba0f092c0365",
   "prevId": "d5a41a33-7fa1-4a1f-832e-8e6550d8d273",
   "version": "7",
   "dialect": "postgresql",
@@ -1295,7 +1295,6 @@
             }
           ],
           "isUnique": true,
-          "where": "\"patients\".\"anonymized_at\" IS NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}

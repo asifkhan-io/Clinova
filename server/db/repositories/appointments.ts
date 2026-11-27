@@ -77,7 +77,6 @@ export async function insertOnlineBooking(
         })
         .onConflictDoUpdate({
           target: [patients.clinicId, patients.phoneE164],
-          targetWhere: sql`${patients.anonymizedAt} IS NULL`, // the partial unique index (erasure)
           set: { consentAt: sql`now()`, consentPolicyVersion: input.consentPolicyVersion, updatedAt: sql`now()` },
         })
         .returning({ id: patients.id });

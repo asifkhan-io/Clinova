@@ -1,6 +1,6 @@
 {
-  "id": "9bc1d44a-da8c-4cd2-bc67-ee3ca2afef85",
-  "prevId": "fd7e080f-0a5d-420f-b404-1457544c8ba8",
+  "id": "18953904-fabb-4670-88ff-9168e42dce15",
+  "prevId": "01d8ee20-6cb6-4ee6-81f9-ba0f092c0365",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1297,7 +1297,6 @@
           "isUnique": true,
           "with": {},
           "method": "btree",
-          "where": "\"patients\".\"anonymized_at\" IS NULL",
           "concurrently": false
         },
         "patients_clinic_id_key": {
