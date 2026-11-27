@@ -59,23 +59,29 @@ export async function createPublicBooking(
 
   // D9: "any available" goes to the dentist with the fewest bookings that day,
   // so one dentist isn't loaded first every morning. Ties: a stable order.
-  const chosen = [...free].sort(
+  const candidates = [...free].sort(
     (a, b) => (busy.get(a.staffId)?.length ?? 0) - (busy.get(b.staffId)?.length ?? 0) || a.staffId.localeCompare(b.staffId),
-  )[0]!;
+  );
 
+  // Patients booking "any" at the same instant all see the same first choice. If
+  // someone else just took that dentist, try the next free one instead of
+  // refusing a slot that is still open (finding F1, Phase 8e). A named dentist
+  // has exactly one candidate, so it behaves as before. The exclusion
+  // constraint still decides each attempt; this loop only picks who to try.
   const { token, hash } = newToken();
-  const inserted = await insertOnlineBooking(scope, {
-    staffId: chosen.staffId,
-    serviceId: input.serviceId,
-    startMs: chosen.startMs,
-    endMs: chosen.endMs,
-    fullName: input.fullName,
-    phoneE164: input.phoneE164,
-    consentPolicyVersion: CONSENT_POLICY_VERSION,
-    accessTokenHash: hash,
-  });
-  if (!inserted.ok) return { ok: false, reason: "slot_taken" };
-
-  // The raw token goes into the patient's link once and is never stored.
-  return { ok: true, token, appointmentId: inserted.appointmentId, staffId: chosen.staffId, startMs: chosen.startMs, endMs: chosen.endMs };
+  for (const chosen of candidates) {
+    const inserted = await insertOnlineBooking(scope, {
+      staffId: chosen.staffId,
+      serviceId: input.serviceId,
+      startMs: chosen.startMs,
+      endMs: chosen.endMs,
+      fullName: input.fullName,
+      phoneE164: input.phoneE164,
+      consentPolicyVersion: CONSENT_POLICY_VERSION,
+      accessTokenHash: hash,
+    });
+    // The raw token goes into the patient's link once and is never stored.
+    if (inserted.ok) return { ok: true, token, appointmentId: inserted.appointmentId, staffId: chosen.staffId, startMs: chosen.startMs, endMs: chosen.endMs };
+  }
+  return { ok: false, reason: "slot_taken" };
 }
