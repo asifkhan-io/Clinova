@@ -127,27 +127,20 @@ describe("many patients, one slot (DoD 4)", () => {
   }
 
   for (const [h, m] of [[11, 0], [11, 30]] as const) {
-    it(`"any dentist" never double-books ${h}:${String(m).padStart(2, "0")} when three patients arrive together`, async () => {
+    it(`"any dentist" gives ${h}:${String(m).padStart(2, "0")} to two of three simultaneous patients, one per dentist`, async () => {
       const { results } = await raceFor(at(h, m), "any", 3);
       tally(results);
 
+      // Two dentists are free, so exactly two patients fit: the loser of the
+      // first choice spills over to the other dentist (finding F1, fixed).
       const won = results.filter((r) => r.ok);
-      // Two dentists are free, so at most two patients can fit, each with a different dentist.
-      expect(won.length).toBeGreaterThanOrEqual(1);
-      expect(won.length).toBeLessThanOrEqual(2);
-      const staffIds = won.map((r) => (r.ok ? r.staffId : ""));
-      expect(new Set(staffIds).size).toBe(won.length);
-      for (const id of staffIds) expect([sara, omar]).toContain(id);
-      for (const r of results) if (!r.ok) expect(["slot_taken", "slot_unavailable"]).toContain(r.reason);
+      expect(won).toHaveLength(2);
+      expect(new Set(won.map((r) => (r.ok ? r.staffId : "")))).toEqual(new Set([sara, omar]));
+      const lost = results.filter((r) => !r.ok);
+      expect(lost).toHaveLength(1);
+      expect(["slot_taken", "slot_unavailable"]).toContain(lost[0]!.ok ? "" : lost[0]!.reason);
     });
   }
-
-  // Finding F1 (found by this file, 2026-11-27). With "any dentist", every patient
-  // in the same instant is given the SAME dentist (fewest bookings, then a stable
-  // order), so two of three are refused with slot_taken although the other dentist
-  // is free. Nobody is double-booked; the patient just has to pick again. Fix to
-  // propose: on slot_taken for "any", retry with the next free dentist.
-  it.todo('"any dentist": simultaneous patients spill over to the next free dentist instead of being refused');
 
   it("never leaves two live appointments overlapping for one dentist", async () => {
     const live = await db

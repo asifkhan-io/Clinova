@@ -97,6 +97,16 @@ describe("double booking is impossible (DoD 4)", () => {
     expect(await db.select().from(patients).where(eq(patients.phoneE164, "+966500000002"))).toEqual([]);
   });
 
+  it("'any dentist' patients arriving together spill over to the next free dentist (F1)", async () => {
+    const r = await Promise.all(
+      ["+966522222201", "+966522222202", "+966522222203"].map((phoneE164) => book({ staffId: "any", startMs: at(9, 30), phoneE164 })),
+    );
+    const won = r.filter((x) => x.ok);
+    expect(won).toHaveLength(2); // Sara and Omar are both free at 09:30
+    expect(new Set(won.map((x) => (x.ok ? x.staffId : "")))).toEqual(new Set([sara, omar]));
+    expect(r.filter((x) => !x.ok)).toEqual([{ ok: false, reason: "slot_taken" }]);
+  });
+
   it("a cancellation frees the slot for the next patient", async () => {
     const [row] = await db.select().from(appointments).where(eq(appointments.startAt, new Date(at(9))));
     await db.update(appointments).set({ status: "cancelled", cancelledAt: new Date(), cancelledBy: "patient" }).where(eq(appointments.id, row!.id));
