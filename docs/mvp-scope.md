@@ -2,9 +2,9 @@
 
 **Status:** LOCKED — 2026-11-21
 **Product:** Multi-tenant online booking SaaS for dental clinics
-**Launch market:** Saudi Arabia
+**Launch market:** Pakistan (Islamabad) pilot first, then Saudi Arabia — changed 2026-11-27, see §13
 **Supersedes:** section 4 of the project instructions
-**Decided in:** the seven-question scoping walk, 2026-11-21
+**Decided in:** the seven-question scoping walk, 2026-11-21; market changed 2026-11-27
 
 Changing anything in §5 or §6 requires a deliberate decision recorded here.
 
@@ -14,7 +14,7 @@ Changing anything in §5 or §6 requires a deliberate decision recorded here.
 
 | # | Decision | Chosen | Why |
 |---|---|---|---|
-| 1 | Launch market | **Saudi Arabia** | Largest GCC private dental market; Arabic+English is a real differentiator; PDPL permits offshore processing with safeguards, so the Vercel/Neon stack survives v1 |
+| 1 | Launch market | **Pakistan (Islamabad) pilot → Saudi Arabia** *(changed 2026-11-27, §13)* | Pilot where Asif can visit clinics in person and no payment processor, Saudi partner or in-Kingdom hosting is needed to start. Saudi Arabia stays the revenue market: largest GCC private dental market, Arabic+English is a real differentiator |
 | 2 | Target clinic size | **2–5 dentists**, one location | Real booking pain, owner decides alone, no procurement cycle. Per-dentist scheduling is a superset — solo clinics are the same engine with one `staff` row |
 | 3 | Tenant unit | `clinic` = one physical location | Hours and timezone live at the right level from day one; branches arrive later as an `organization` table above clinics, with no migration |
 | 4 | User roles | **3 logins** + patients as records | `platform_admin` (clinic records only), `clinic_owner`, `clinic_staff`. Dentists are bookable resources with an optional login. Patients never log in |
@@ -256,3 +256,23 @@ Scoping is closed. The build order lives in `docs/architecture.md` §5.
 4. **Phase 2** — auth and tenancy, with the isolation and authorization tests
 5. **Phase 3** — clinic configuration
 6. **Phase 4** — the availability engine, no UI
+
+---
+
+## 13. Change log
+
+### 2026-11-27 — Pakistan pilot before Saudi Arabia
+
+**Decision.** Pilot in Islamabad, then Pakistani paying clinics with features chosen from their feedback, then Saudi preparation and launch, then other countries one at a time. Plan: `claude/pakistan-roadmap.md` in the Claude project.
+
+**Why.** Asif is in Islamabad and can watch real receptionists use the product, which §10 criterion 7 admits self-testing cannot replace. Starting needs no Paddle, no Saudi partner and no in-Kingdom hosting. Pakistan has no enacted data-protection law yet (the Personal Data Protection Bill is still a draft), but every rule in §8 still applies: patient data is treated as sensitive regardless. Real clinics and no-show numbers are the proof a Saudi clinic will ask for.
+
+**Accepted trade-offs.** Much lower prices in PKR: Pakistan is the proof stage, not the business. Arabic stays built and tested but unused by early clinics. English only for Pakistan; Urdu only if a pilot clinic asks.
+
+**Rule that keeps Saudi a configuration change, not a rewrite.** Arabic/RTL, the generic schema and §8 stay. Anything country-specific (phone parsing, currency, timezone, which languages a clinic fills in) lives in clinic settings, never hardcoded.
+
+**Scope consequences (Week 2 of the roadmap).**
+- One currency per clinic (`SAR` | `PKR`), shown with locale formatting, **no conversion**. §6's "multi-currency" exclusion now means conversion and mixed currencies within a clinic.
+- Phone numbers are parsed with the clinic's country, so a Pakistani clinic accepts local `03…` numbers; storage stays E.164.
+- Arabic service names become optional, falling back to English on the Arabic page.
+- An Islamabad demo clinic joins the seed (§5), so the sales demo matches the market.

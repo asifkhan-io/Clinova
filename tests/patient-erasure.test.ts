@@ -16,6 +16,7 @@ const staffRepo = await import("@/server/db/repositories/staff");
 const hours = await import("@/server/db/repositories/hours");
 const clinicsRepo = await import("@/server/db/repositories/clinics");
 const patientsRepo = await import("@/server/db/repositories/patients");
+const clinicAppointments = await import("@/server/db/repositories/clinic-appointments");
 const { createPublicBooking } = await import("@/server/services/booking");
 const { getPatientAppointment } = await import("@/server/services/appointment-changes");
 const { hashToken } = await import("@/server/services/tokens");
@@ -101,6 +102,12 @@ describe("erasing a patient", () => {
     expect(events[0]).toMatchObject({ actorType: "member", actorUserId: ctx.userId, clinicId: ctx.clinicId });
     expect(events[0]!.metadata).toMatchObject({ cancelledUpcoming: 1, appointmentIds: expect.arrayContaining([earlier.id, later.id]) });
     expectNoPii(events[0]!.metadata, "Noura");
+  });
+
+  it("staff can't issue a new private link for an erased patient's booking", async () => {
+    // `earlier` is still "booked" (past visits aren't touched), so only the erasure stops this.
+    expect(await clinicAppointments.reissueAccessToken(ctx, { appointmentId: earlier.id, accessTokenHash: "f".repeat(64) })).toEqual({ ok: false, reason: "erased" });
+    expect((await apptRow(earlier.id)).accessTokenHash).not.toBe("f".repeat(64));
   });
 
   it("can't be repeated, and the record can't be given a name or number again", async () => {

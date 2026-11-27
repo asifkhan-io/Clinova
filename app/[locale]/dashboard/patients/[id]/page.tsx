@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { z } from "zod";
 import { StatusBadge } from "@/components/calendar/status-badge";
+import { ErasePatientForm } from "@/components/patients/erase-patient-form";
 import { PatientEditForm } from "@/components/patients/patient-edit-form";
 import { clinicDay, clinicTime } from "@/lib/i18n/format";
 import { Link } from "@/lib/i18n/navigation";
@@ -42,18 +43,31 @@ async function PatientBody({ locale, params }: { locale: Locale; params: Props["
   const tz = clinic.timezone;
   const ar = locale === "ar";
   const pick = (en: string, arText: string) => (ar ? arText || en : en || arText);
-  const canEdit = ctx.clinicStatus !== "suspended";
+  const erasedAt = patient.anonymizedAt;
+  const erased = erasedAt !== null;
+  const canEdit = ctx.clinicStatus !== "suspended" && !erased;
+  // Erasing is the owner's call (Phase 9d); the action checks the role again.
+  const canErase = canEdit && ctx.role === "clinic_owner";
 
   return (
     <>
       <header className="flex flex-col gap-2">
         <Link href="/dashboard/patients" className="self-start text-sm underline">{t("back")}</Link>
-        <h1 className="text-2xl font-semibold">{patient.fullName}</h1>
-        <p dir="ltr" className="self-start opacity-80">{patient.phoneE164}</p>
-        <div className="flex flex-wrap gap-2">
-          <a href={whatsappLink(patient.phoneE164, t("greeting", { name: patient.fullName }))} target="_blank" rel="noopener noreferrer" className="rounded-md border px-4 py-2">{t("whatsapp")}</a>
-          <a href={`tel:${patient.phoneE164}`} className="rounded-md border px-4 py-2">{t("call")}</a>
-        </div>
+        {erasedAt ? (
+          <>
+            <h1 className="text-2xl font-semibold">{t("erasedName")}</h1>
+            <p role="status" className="rounded-lg border p-3 text-sm">{t("erasedNotice", { date: clinicDay(locale, tz, erasedAt) })}</p>
+          </>
+        ) : (
+          <>
+            <h1 className="text-2xl font-semibold">{patient.fullName}</h1>
+            <p dir="ltr" className="self-start opacity-80">{patient.phoneE164}</p>
+            <div className="flex flex-wrap gap-2">
+              <a href={whatsappLink(patient.phoneE164, t("greeting", { name: patient.fullName }))} target="_blank" rel="noopener noreferrer" className="rounded-md border px-4 py-2">{t("whatsapp")}</a>
+              <a href={`tel:${patient.phoneE164}`} className="rounded-md border px-4 py-2">{t("call")}</a>
+            </div>
+          </>
+        )}
       </header>
 
       <section className="flex flex-col gap-3">
@@ -84,6 +98,8 @@ async function PatientBody({ locale, params }: { locale: Locale; params: Props["
           </div>
         </details>
       )}
+
+      {canErase && <ErasePatientForm patientId={patient.id} />}
 
       <p className="text-xs opacity-60">{t("privacyNote")}</p>
     </>

@@ -3,7 +3,7 @@
 import { z } from "zod";
 import type { AuthErrorCode } from "@/server/auth/errors";
 import { requireClinicAccess } from "@/server/auth/guards";
-import { updatePatient } from "@/server/db/repositories/patients";
+import { anonymizePatient, updatePatient } from "@/server/db/repositories/patients";
 import {
   clinicWallTimeToUtc,
   createStaffAppointment,
@@ -33,7 +33,9 @@ export type AppointmentActionError =
   | "started"
   | "not_started"
   | "phone_taken"
-  | "too_late";
+  | "too_late"
+  | "erased"
+  | "already_anonymized";
 
 async function member() {
   return requireClinicAccess("clinic_staff", { write: true });
@@ -117,6 +119,29 @@ export async function updatePatientAction(_prev: Result | null, form: FormData):
   const parsed = patientEditSchema.safeParse(Object.fromEntries(form));
   if (!parsed.success) return { ok: false, error: fieldError(parsed.error.issues) };
   return done(await updatePatient(ctx, parsed.data.patientId, { fullName: parsed.data.fullName, phoneE164: parsed.data.phone }));
+}
+
+/**
+ * Erase a patient on their request (Phase 9d, scope §8): anonymize, never
+ * delete. Owner only: it can't be undone, and it cancels the patient's
+ * upcoming bookings, so it is a different privilege from editing a record.
+ * `confirm` must be ticked in the form; the server checks it too, so a
+ * crafted request can't skip the warning.
+ */
+export async function erasePatientAction(
+  _prev: ActionResult<{ cancelledUpcoming: number }, AppointmentActionError> | null,
+  form: FormData,
+): Promise<ActionResult<{ cancelledUpcoming: number }, AppointmentActionError>> {
+  let ctx;
+  try {
+    ctx = await requireClinicAccess("clinic_owner", { write: true });
+  } catch (e) {
+    return authFailure(e);
+  }
+  const parsed = z.object({ patientId: z.uuid(), confirm: z.literal("yes") }).safeParse(Object.fromEntries(form));
+  if (!parsed.success) return { ok: false, error: "invalid_input" };
+  const result = await anonymizePatient(ctx, parsed.data.patientId);
+  return result.ok ? { ok: true, data: { cancelledUpcoming: result.cancelledUpcoming } } : { ok: false, error: result.reason };
 }
 
 /**

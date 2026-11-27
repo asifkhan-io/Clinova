@@ -9,6 +9,7 @@ import { Link } from "@/lib/i18n/navigation";
 import { resolveLocale } from "@/lib/i18n/server";
 import { addDays, dayOfWeek, localDate, localToUtc, todayIn } from "@/lib/time/zoned";
 import { whatsappLink } from "@/lib/whatsapp";
+import { isErasedPhone } from "@/server/db/repositories/patients";
 import { requireClinicPage } from "@/server/auth/page-guards";
 import { type ClinicAppointment, listAppointments } from "@/server/db/repositories/clinic-appointments";
 import { getOwnClinic } from "@/server/db/repositories/clinics";
@@ -69,14 +70,14 @@ async function CalendarBody({ locale, searchParams }: { locale: Locale; searchPa
         <span className="font-medium" dir="ltr">
           <span className="inline-block text-start">{clinicTime(locale, tz, a.startAt)} – {clinicTime(locale, tz, a.endAt)}</span>
         </span>
-        <span className="truncate">{a.patient.fullName}</span>
+        <span className="truncate">{isErasedPhone(a.patient.phoneE164) ? t("erasedPatient") : a.patient.fullName}</span>
         <span className="text-sm opacity-70">
           {compact ? pick(a.staff.nameEn, a.staff.nameAr) : `${pick(a.service.nameEn, a.service.nameAr)} · ${pick(a.staff.nameEn, a.staff.nameAr)}`}
         </span>
       </Link>
       <div className="flex flex-col items-end gap-2">
         <StatusBadge status={a.status} label={t(`status.${a.status}`)} />
-        {a.status === "booked" && !compact && (
+        {a.status === "booked" && !compact && !isErasedPhone(a.patient.phoneE164) && (
           <a href={whatsappLink(a.patient.phoneE164, "")} target="_blank" rel="noopener noreferrer" className="rounded-md border px-2 py-1 text-xs hover:bg-black/5">
             {t("whatsapp")}
           </a>

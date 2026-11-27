@@ -151,7 +151,7 @@ export async function setAppointmentOutcome(
   });
 }
 
-export type ReissueLinkResult = { ok: true } | { ok: false; reason: "not_found" | "changed" };
+export type ReissueLinkResult = { ok: true } | { ok: false; reason: "not_found" | "changed" | "erased" };
 
 /**
  * Point the appointment at a new private link and retire the old one, because
@@ -173,12 +173,16 @@ export async function reissueAccessToken(
 ): Promise<ReissueLinkResult> {
   return ctx.db.transaction(async (tx) => {
     const [current] = await tx
-      .select({ status: appointments.status })
+      .select({ status: appointments.status, anonymizedAt: patients.anonymizedAt })
       .from(appointments)
+      .innerJoin(patients, and(eq(patients.id, appointments.patientId), eq(patients.clinicId, appointments.clinicId)))
       .where(and(eq(appointments.id, input.appointmentId), eq(appointments.clinicId, ctx.clinicId)))
-      .for("update")
+      .for("update", { of: appointments })
       .limit(1);
     if (!current) return { ok: false, reason: "not_found" } as const;
+    // Erasure retired every link this patient held (scope §8); a new one would
+    // undo that, and there is no longer a real number to send it to.
+    if (current.anonymizedAt) return { ok: false, reason: "erased" } as const;
     if (current.status !== "booked") return { ok: false, reason: "changed" } as const;
     await tx
       .update(appointments)

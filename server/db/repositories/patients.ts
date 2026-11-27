@@ -41,7 +41,7 @@ export async function searchPatients(ctx: ClinicContext, input: { query: string;
  */
 export async function getPatientRecord(ctx: ClinicContext, patientId: string) {
   const [patient] = await ctx.db
-    .select({ id: patients.id, fullName: patients.fullName, phoneE164: patients.phoneE164, createdAt: patients.createdAt })
+    .select({ id: patients.id, fullName: patients.fullName, phoneE164: patients.phoneE164, createdAt: patients.createdAt, anonymizedAt: patients.anonymizedAt })
     .from(patients)
     .where(and(eq(patients.id, patientId), eq(patients.clinicId, ctx.clinicId)))
     .limit(1);
